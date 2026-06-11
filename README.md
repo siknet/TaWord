@@ -1,7 +1,7 @@
 # 选字组词 · Chinese Word Composer
 
 > 一个交互式 HTML 工具，用于从竖排文本（如碑帖拓片、古诗文）中选取汉字并组合成词语。支持简繁查找、横排转竖排，纯前端，无需任何依赖。
-![](https://siknet.github.io/TaWord/sfg.png)
+![](sfg.png)
 ## 功能
 
 | 功能 | 说明 |
