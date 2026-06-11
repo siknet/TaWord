@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chinese Text Word Composer · 选字组词</title>
+    <style>
+        /* ===== Reset & Base ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f2ed;
+            color: #2c2c2c;
+            padding: 24px 16px;
+            max-width: 960px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        h1, h2, h3 { font-weight: 500; }
+        h1 { font-size: 1.5rem; text-align: center; margin-bottom: 24px; letter-spacing: 2px; }
+        h2 { font-size: 1.1rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        h2 .badge { font-size: 0.7rem; background: #d4c9b3; color: #4a3f2e; padding: 1px 8px; border-radius: 8px; font-weight: 400; }
+
+        /* ===== Cards / Sections ===== */
+        .section {
+            background: #fffcf7;
+            border: 1px solid #e0d6c4;
+            border-radius: 10px;
+            padding: 18px 20px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        /* ===== Vertical Text Grid ===== */
+        .grid-wrapper {
+            overflow-x: auto;
+            padding: 8px 4px;
+        }
+        .grid-wrapper .grid {
+            display: flex;
+            flex-direction: row-reverse;    /* right-to-left column order */
+            justify-content: center;
+            gap: 6px;
+            margin: 0 auto;
+        }
+        .grid-wrapper .grid + .grid {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed #ddd3c2;
+        }
+        .grid-column {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .grid-column .char-btn {
+            width: 48px;
+            height: 48px;
+            font-size: 1.1rem;
+            border: 1px solid #cdc3b0;
+            border-radius: 6px;
+            background: #fffcf7;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.12s, border-color 0.12s, opacity 0.15s;
+            user-select: none;
+            padding: 0;
+            line-height: 1;
+            font-family: inherit;
+            color: #2c2c2c;
+        }
+        .grid-column .char-btn:hover:not(.used):not(.disabled) {
+            background: #efe8db;
+            border-color: #b8a98e;
+        }
+        /* Selected — currently picked for word formation */
+        .grid-column .char-btn.selected {
+            background: #b7d0e8;
+            border-color: #5a8bbd;
+            color: #1a3a5c;
+            font-weight: 600;
+        }
+        /* Used — already confirmed into a word */
+        .grid-column .char-btn.used {
+            text-decoration: line-through;
+            text-decoration-color: #b33;
+            text-decoration-thickness: 2px;
+            background: #ece7dd;
+            border-color: #d5ccbb;
+            color: #999282;
+            cursor: default;
+            opacity: 0.7;
+        }
+        .grid-column .char-btn.used:hover {
+            background: #ece7dd;
+        }
+        .grid-column .char-btn.disabled {
+            cursor: default;
+        }
+        /* Click-order number badge when multiple chars selected */
+        /* Search highlight — floating search bar match */
+        .grid-column .char-btn.search-hit {
+            background: #fdebd0 !important;
+            border-color: #e67e22 !important;
+            color: #8b4513 !important;
+            box-shadow: 0 0 0 2px #e67e22;
+            font-weight: 700;
+            transform: scale(1.05);
+            z-index: 1;
+        }
+        .grid-column .char-btn.search-hit.used {
+            box-shadow: 0 0 0 2px #e67e22, inset 0 0 0 1px #b33;
+        }
+
+        /* ===== Floating Search Bar ===== */
+        .search-float {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fffcf7;
+            border: 1px solid #e0d6c4;
+            border-radius: 8px;
+            padding: 6px 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .search-float label {
+            font-size: 0.82rem;
+            color: #666;
+            white-space: nowrap;
+        }
+        .search-float input {
+            flex: 1;
+            min-width: 80px;
+            padding: 4px 8px;
+            border: 1px solid #cdc3b0;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: #fffcf7;
+            outline: none;
+        }
+        .search-float input:focus {
+            border-color: #5a8bbd;
+        }
+        .search-float .search-count {
+            font-size: 0.75rem;
+            color: #888;
+            white-space: nowrap;
+            min-width: 24px;
+        }
+        .search-float .btn-clear-search {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border: 1px solid #cdc3b0;
+            border-radius: 4px;
+            background: #f3efe8;
+            cursor: pointer;
+        }
+        .search-float .btn-clear-search:hover {
+            background: #e5ddd0;
+        }
+
+        .grid-column .char-btn.selected .order-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #2c5f8a;
+            color: #fff;
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-weight: 600;
+        }
+        .grid-column .char-btn {
+            position: relative;
+        }
+
+        /* ===== Selection Controls ===== */
+        .selection-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+            padding: 10px 12px;
+            background: #f3efe8;
+            border-radius: 8px;
+            min-height: 48px;
+        }
+        .selection-bar .preview {
+            font-size: 1.15rem;
+            letter-spacing: 2px;
+            min-width: 40px;
+            padding: 2px 8px;
+            background: #fffcf7;
+            border: 1px dashed #c4b8a0;
+            border-radius: 4px;
+            min-height: 2em;
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+        .selection-bar .preview.empty {
+            color: #b0a898;
+            font-size: 0.85rem;
+        }
+        .btn {
+            font-family: inherit;
+            font-size: 0.85rem;
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 1px solid #c4b8a0;
+            background: #fffcf7;
+            cursor: pointer;
+            transition: background 0.1s;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #efe8db; }
+        .btn-primary {
+            background: #5a8bbd;
+            border-color: #4a7aab;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #4a7aab; }
+        .btn-primary:disabled {
+            background: #b0bcc9;
+            border-color: #a0aeba;
+            cursor: default;
+        }
+        .btn-danger {
+            background: #c4716b;
+            border-color: #b35f59;
+            color: #fff;
+        }
+        .btn-danger:hover { background: #b35f59; }
+        .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+
+        /* ===== Words List ===== */
+        .words-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            padding: 8px 4px;
+            min-height: 32px;
+        }
+        .word-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px 3px 14px;
+            background: #f3efe8;
+            border-radius: 16px;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            border: 1px solid #ddd3c2;
+        }
+        .word-chip .remove-word {
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: #b35f59;
+            padding: 0 2px;
+            line-height: 1;
+        }
+        .word-chip .remove-word:hover { color: #8c2e28; }
+        .words-list .empty-hint {
+            color: #b0a898;
+            font-size: 0.85rem;
+        }
+
+        /* ===== Copy Area ===== */
+        .copy-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .copy-area textarea {
+            flex: 1;
+            min-width: 180px;
+            padding: 8px 10px;
+            border: 1px solid #ddd3c2;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 38px;
+            background: #fffcf7;
+        }
+        .copy-area textarea:focus {
+            outline: none;
+            border-color: #5a8bbd;
+        }
+        .toast {
+            font-size: 0.78rem;
+            color: #3f7a3f;
+            transition: opacity 0.3s;
+        }
+
+        /* ===== Converter ===== */
+        .converter-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .converter-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+        .converter-inputs label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.85rem;
+        }
+        .converter-inputs input[type="number"] {
+            width: 56px;
+            padding: 4px 6px;
+            border: 1px solid #cdc3b0;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        .converter-inputs input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .converter-inputs textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px 10px;
+            border: 1px solid #ddd3c2;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: vertical;
+            background: #fffcf7;
+            margin-top: 6px;
+        }
+        .converter-preview {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f4ee;
+            border-radius: 6px;
+            border: 1px solid #e0d6c4;
+            font-size: 0.85rem;
+        }
+        .converter-preview pre {
+            font-family: inherit;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .converter-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        /* ===== Instructions / Meta ===== */
+        .meta-info {
+            font-size: 0.78rem;
+            color: #888173;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .meta-info a { color: #5a8bbd; }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 600px) {
+            body { padding: 12px 8px; }
+            .section { padding: 12px 12px; }
+            .grid-column .char-btn { width: 40px; height: 40px; font-size: 0.95rem; }
+            .selection-bar { flex-direction: column; align-items: stretch; }
+            .selection-bar .preview { min-height: 1.6em; }
+            .copy-area { flex-direction: column; }
+            .copy-area textarea { min-width: unset; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>选字组词 · Chinese Word Composer</h1>
+
+<!-- ==================== VERTICAL TEXT GRID ==================== -->
+<section class="section" id="grid-section">
+    <h2>① 竖排文字 <span class="badge">点击选字</span></h2>
+    <div class="search-float" id="searchFloat">
+        <label>🔍 查找：</label>
+        <input type="text" id="searchInput" placeholder="输入文字，自动高亮匹配…" autocomplete="off">
+        <span class="search-count" id="searchCount"></span>
+        <button class="btn-clear-search" id="searchClear">✕</button>
+    </div>
+    <div class="grid-wrapper" id="gridWrapper">
+        <div id="gridContainer"></div>
+    </div>
+
+    <!-- Selection toolbar -->
+    <div class="selection-bar">
+        <span style="font-size:0.85rem;color:#666;">当前选中：</span>
+        <div class="preview empty" id="selectionPreview">点击上方文字选字…</div>
+        <button class="btn btn-primary" id="confirmBtn" disabled>确认组词</button>
+        <button class="btn" id="clearBtn" disabled>清除选择</button>
+    </div>
+</section>
+
+<!-- ==================== COMPOSED WORDS ==================== -->
+<section class="section" id="words-section">
+    <h2>② 已组词语</h2>
+    <div class="words-list" id="wordsList">
+        <span class="empty-hint">尚未组词，请在竖排文字中点击选择。</span>
+    </div>
+
+    <div class="copy-area">
+        <textarea id="wordsTextarea" placeholder="已组词语将显示在此处，方便复制…" readonly></textarea>
+        <button class="btn btn-primary" id="copyBtn">📋 复制</button>
+    </div>
+</section>
+
+<!-- ==================== CONVERTER ==================== -->
+<section class="section" id="converter-section">
+    <h2>③ 横排转竖排 <span class="badge">工具</span></h2>
+    <div class="converter-grid">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <label style="font-size:0.85rem;">输入文本（支持两种方式）：</label>
+            <button class="btn btn-sm" id="s2tBtn">简→繁</button>
+        </div>
+        <textarea id="converterInput" placeholder="方式一：粘贴任意文本，用下方参数控制分列&#10;方式二：用回车手动分行，每行成一列，然后点「直接上墙」&#10;&#10;示例（回车分割）：&#10;松风阁&#10;依山筑阁见平川，夜阑箕斗&#10;夜阑箕斗插屋椽" style="width:100%;min-height:300px;" rows="4"></textarea>
+        <div class="converter-inputs">
+            <label>列数 <input type="number" id="colCount" value="3" min="1" max="20"></label>
+            <label>每列字数 <input type="number" id="rowCount" value="6" min="1" max="30"></label>
+            <label><input type="checkbox" id="removePunct" checked> 去除标点</label>
+            <button class="btn btn-primary" id="convertBtn">自动分列</button>
+            <span style="color:#b0a898;font-size:0.8rem;">|</span>
+            <button class="btn btn-danger" id="directLoadBtn">↗ 直接上墙</button>
+        </div>
+    </div>
+
+</section>
+
+<div class="meta-info">
+    提示：点击竖排文字中的汉字选中 → 点击「确认组词」→ 已选汉字标记删除线。可连续组多个词。
+</div>
+
+<script>
+/**
+ * ============================================================
+ *  Chinese Text Word Composer — Main Application
+ *  Architecture overview:
+ *
+ *    AppState        — single source of truth
+ *    GridRenderer    — renders the vertical character grid
+ *    SelectionMgr    — handles character click / selection / confirm
+ *    WordsManager    — manages composed words + copy area
+ *    Converter       — horizontal-to-vertical text converter
+ *    UIController    — wires everything together + DOM events
+ * ============================================================
+ */
+
+// ======================== SAMPLE DATA =========================
+const SAMPLE_DATA = [
+    ["低", "头", "思", "故", "乡"],
+    ["举", "头", "望", "明", "月"],
+    ["疑", "似", "地", "上", "光"],
+];
+
+// ==================== 1. AppState ============================
+/**
+ * Central state — pure data, no DOM manipulation.
+ *
+ * @property {string[][]} lines       — each inner array is one line (→ one vertical column)
+ * @property {number}      maxChars   — max characters per line (rows per column)
+ * @property {Array<{line:number, char:number}>} selection  — currently selected cells (click order)
+ * @property {Array<{chars:string, cells:Array<{line:number, char:number}>}>} words — confirmed words
+ * @property {Set<string>} usedCells  — "line,char" keys of cells already used in a word
+ */
+class AppState {
+    constructor(lines, maxChars = 10) {
+        this.lines = lines;
+        this.maxChars = maxChars;
+        this.selection = [];       // click-order list of {line, char}
+        this.words = [];
+        this.usedCells = new Set();
+    }
+
+    /** Unique key for a grid position */
+    static cellKey(line, char) { return `${line},${char}`; }
+
+    /** Is this cell already consumed by a confirmed word? */
+    isUsed(line, char) { return this.usedCells.has(AppState.cellKey(line, char)); }
+
+    /** Is this cell currently in the active selection? */
+    isSelected(line, char) {
+        return this.selection.some(c => c.line === line && c.char === char);
+    }
+
+    /** Get the click-order index of a selected cell (0-based), or -1 */
+    selectionIndex(line, char) {
+        return this.selection.findIndex(c => c.line === line && c.char === char);
+    }
+
+    /** Toggle a cell into or out of the current selection */
+    toggleSelection(line, char) {
+        const idx = this.selectionIndex(line, char);
+        if (idx !== -1) {
+            this.selection.splice(idx, 1);
+        } else {
+            this.selection.push({ line, char });
+        }
+    }
+
+    /** Confirm current selection as a word — mark cells used */
+    confirmWord() {
+        if (this.selection.length === 0) return null;
+        const chars = this.selection.map(c => this.lines[c.line][c.char]);
+        const cells = this.selection.map(c => ({ line: c.line, char: c.char }));
+        const word = { chars: chars.join(''), cells };
+        this.words.push(word);
+        // Mark all selected cells as used
+        for (const c of this.selection) {
+            this.usedCells.add(AppState.cellKey(c.line, c.char));
+        }
+        this.selection = [];
+        return word;
+    }
+
+    /** Remove the last confirmed word and unmark its cells */
+    undoLastWord() {
+        const word = this.words.pop();
+        if (!word) return null;
+        for (const c of word.cells) {
+            this.usedCells.delete(AppState.cellKey(c.line, c.char));
+        }
+        return word;
+    }
+
+    /** Clear selection without confirming */
+    clearSelection() {
+        this.selection = [];
+    }
+
+    /** Get all confirmed word texts as a flat string (space-separated) */
+    getWordsText(separator = ' ') {
+        return this.words.map(w => w.chars).join(separator);
+    }
+
+    /** Replace entire grid data */
+    loadLines(newLines) {
+        this.lines = newLines;
+        this.selection = [];
+        this.words = [];
+        this.usedCells = new Set();
+    }
+}
+
+// ==================== 2. GridRenderer =========================
+/**
+ * Renders the vertical character grid into a DOM container.
+ * Each input line becomes a column, displayed right-to-left (reversed).
+ */
+class GridRenderer {
+    /**
+     * @param {HTMLElement} container  — the .grid DOM element
+     * @param {Function}    onClick    — callback(char, lineIdx, charIdx)
+     */
+    constructor(container, onClick) {
+        this.container = container;
+        this.onClick = onClick;
+    }
+
+    /**
+     * Build / rebuild the grid from state.
+     * Clears and recreates all column DOM elements.
+     */
+    render(state) {
+        this.container.innerHTML = '';
+        const { lines, maxChars } = state;
+        const COLS_PER_ROW = 16;  // max columns before wrapping to next row
+
+        if (!lines || lines.length === 0) {
+            this.container.innerHTML = '<span style="color:#b0a898;padding:20px;">暂无数据</span>';
+            return;
+        }
+
+        // Split columns into rows of at most COLS_PER_ROW columns each.
+        // Each row is a separate .grid container with row-reverse,
+        // so within each row the first line appears rightmost.
+        for (let rowStart = 0; rowStart < lines.length; rowStart += COLS_PER_ROW) {
+            const rowEnd = Math.min(rowStart + COLS_PER_ROW, lines.length);
+            const gridRow = document.createElement('div');
+            gridRow.className = 'grid';
+
+            for (let lineIdx = rowStart; lineIdx < rowEnd; lineIdx++) {
+                const line = lines[lineIdx];
+                const col = document.createElement('div');
+                col.className = 'grid-column';
+
+                // Pad or truncate to maxChars
+                const chars = line.slice(0, maxChars);
+                for (let i = 0; i < maxChars; i++) {
+                    const ch = chars[i] || '　';  // full-width space for empty slots
+                    const btn = document.createElement('button');
+                    btn.className = 'char-btn';
+                    btn.textContent = ch;
+
+                    // Store position as data attributes
+                    btn.dataset.line = lineIdx;
+                    btn.dataset.char = i;
+                    btn.dataset.ch = ch;
+
+                    // Disable empty slots
+                    if (!chars[i]) {
+                        btn.classList.add('disabled');
+                        btn.disabled = true;
+                    }
+
+                    btn.addEventListener('click', (e) => {
+                        const li = parseInt(e.currentTarget.dataset.line);
+                        const ci = parseInt(e.currentTarget.dataset.char);
+                        this.onClick(li, ci);
+                    });
+
+                    col.appendChild(btn);
+                }
+                gridRow.appendChild(col);
+            }
+            this.container.appendChild(gridRow);
+        }
+    }
+
+    /**
+     * Update visual state of all character buttons to reflect current
+     * selection and usage — called after every state change.
+     * Avoids full re-render for performance.
+     */
+    updateVisuals(state) {
+        const btns = this.container.querySelectorAll('.char-btn');
+        for (const btn of btns) {
+            const li = parseInt(btn.dataset.line);
+            const ci = parseInt(btn.dataset.char);
+            if (btn.disabled) continue;
+
+            // Reset visual classes (keep 'disabled')
+            btn.classList.remove('selected', 'used');
+
+            // Remove any old order badge
+            const oldBadge = btn.querySelector('.order-badge');
+            if (oldBadge) oldBadge.remove();
+
+            if (state.isUsed(li, ci)) {
+                btn.classList.add('used');
+            } else if (state.isSelected(li, ci)) {
+                btn.classList.add('selected');
+                // Show click-order number if more than 1 cell selected
+                if (state.selection.length > 1) {
+                    const idx = state.selectionIndex(li, ci);
+                    if (idx !== -1) {
+                        const badge = document.createElement('span');
+                        badge.className = 'order-badge';
+                        badge.textContent = idx + 1;
+                        btn.appendChild(badge);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================== 3. SelectionMgr =========================
+/**
+ * Handles the selection -> confirm -> clear lifecycle.
+ * All decisions are delegated to the UI controller via callbacks.
+ */
+class SelectionMgr {
+    /**
+     * @param {AppState}    state
+     * @param {GridRenderer} renderer
+     * @param {Object}       uiRefs  — DOM element references { preview, confirmBtn, clearBtn }
+     */
+    constructor(state, renderer, uiRefs) {
+        this.state = state;
+        this.renderer = renderer;
+        this.ui = uiRefs;
+    }
+
+    /** Called when a character button is clicked */
+    handleCellClick(lineIdx, charIdx) {
+        // Ignore clicks on already-used cells
+        if (this.state.isUsed(lineIdx, charIdx)) return;
+
+        this.state.toggleSelection(lineIdx, charIdx);
+        this._syncUI();
+    }
+
+    /** Confirm the current selection as a word */
+    confirm() {
+        const word = this.state.confirmWord();
+        if (word) {
+            // Notify listeners (words list update, etc.)
+            if (this.onWordConfirmed) this.onWordConfirmed(word);
+        }
+        this._syncUI();
+    }
+
+    /** Clear current selection without confirming */
+    clear() {
+        this.state.clearSelection();
+        this._syncUI();
+    }
+
+    /** Update all UI elements to match state */
+    _syncUI() {
+        // Update grid visuals
+        this.renderer.updateVisuals(this.state);
+
+        // Update selection preview
+        const preview = this.ui.preview;
+        if (this.state.selection.length === 0) {
+            preview.textContent = '点击上方文字选字…';
+            preview.classList.add('empty');
+        } else {
+            const text = this.state.selection
+                .map(c => this.state.lines[c.line][c.char])
+                .join('');
+            preview.textContent = text;
+            preview.classList.remove('empty');
+        }
+
+        // Toggle button states
+        const hasSelection = this.state.selection.length > 0;
+        this.ui.confirmBtn.disabled = !hasSelection;
+        this.ui.clearBtn.disabled = !hasSelection;
+    }
+
+    /** Reset selection UI to clean state */
+    reset() {
+        this._syncUI();
+    }
+}
+
+// ==================== 4. WordsManager =========================
+/**
+ * Manages the composed words display, textarea, and copy logic.
+ */
+class WordsManager {
+    /**
+     * @param {AppState} state
+     * @param {Object}    refs — { wordsList, textarea, copyBtn }
+     */
+    constructor(state, refs) {
+        this.state = state;
+        this.refs = refs;
+
+        // Copy button handler
+        refs.copyBtn.addEventListener('click', () => this._copyWords());
+    }
+
+    /** Refresh the words list DOM and the textarea */
+    render() {
+        const list = this.refs.wordsList;
+        list.innerHTML = '';
+
+        if (this.state.words.length === 0) {
+            list.innerHTML = '<span class="empty-hint">尚未组词，请在竖排文字中点击选择。</span>';
+            this.refs.textarea.value = '';
+            return;
+        }
+
+        // Create a visual chip for each word
+        for (let i = 0; i < this.state.words.length; i++) {
+            const word = this.state.words[i];
+            const chip = document.createElement('span');
+            chip.className = 'word-chip';
+            chip.textContent = word.chars;
+
+            // Remove button
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'remove-word';
+            removeBtn.textContent = '✕';
+            removeBtn.title = '删除此词';
+            removeBtn.addEventListener('click', () => {
+                if (this.onDeleteWord) this.onDeleteWord(i);
+            });
+            chip.appendChild(removeBtn);
+            list.appendChild(chip);
+        }
+
+        // Update textarea with plain text
+        this.refs.textarea.value = this.state.getWordsText(' ');
+    }
+
+    /** Copy textarea content to clipboard */
+    async _copyWords() {
+        const text = this.refs.textarea.value;
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            this._showToast('已复制到剪贴板 ✓');
+        } catch {
+            // Fallback: select and execCommand
+            this.refs.textarea.select();
+            document.execCommand('copy');
+            this._showToast('已复制 ✓');
+        }
+    }
+
+    /** Brief toast message near the copy button */
+    _showToast(msg) {
+        const existing = this.refs.copyBtn.parentElement.querySelector('.toast');
+        if (existing) existing.remove();
+        const toast = document.createElement('span');
+        toast.className = 'toast';
+        toast.textContent = msg;
+        this.refs.copyBtn.parentElement.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+        setTimeout(() => toast.remove(), 2500);
+    }
+}
+
+// ==================== 5. S2T Mapping =========================
+/**
+ * Simplified-to-Traditional Chinese character mapping.
+ * Covers the most common characters that differ between the two scripts.
+ */
+const S2T_MAP = {'与':'與','专':'專','业':'業','丛':'叢','东':'東','丝':'絲','丢':'丟','两':'兩','严':'嚴','个':'個','丰':'豐','临':'臨','为':'為','丽':'麗','举':'舉','义':'義','乌':'烏','乐':'樂','乔':'喬','习':'習','乡':'鄉','书':'書','买':'買','乱':'亂','争':'爭','于':'於','亏':'虧','云':'雲','亚':'亞','产':'產','亩':'畝','亲':'親','亿':'億','仅':'僅','仆':'僕','从':'從','仑':'侖','仓':'倉','仪':'儀','们':'們','价':'價','众':'眾','优':'優','会':'會','伟':'偉','传':'傳','伤':'傷','伦':'倫','伪':'偽','体':'體','余':'餘','佣':'傭','侣':'侶','侧':'側','侨':'僑','俭':'儉','偿':'償','儿':'兒','党':'黨','关':'關','兴':'興','养':'養','兽':'獸','内':'內','冈':'岡','册':'冊','写':'寫','军':'軍','农':'農','冲':'衝','决':'決','准':'準','凉':'涼','净':'淨','几':'幾','凭':'憑','击':'擊','划':'劃','别':'別','刘':'劉','刚':'剛','创':'創','剧':'劇','办':'辦','务':'務','动':'動','劳':'勞','势':'勢','勋':'勳','区':'區','医':'醫','华':'華','协':'協','单':'單','卖':'賣','占':'佔','卫':'衛','厂':'廠','厅':'廳','历':'歷','厉':'厲','压':'壓','厌':'厭','厕':'廁','县':'縣','参':'參','双':'雙','发':'發','变':'變','台':'臺','叹':'嘆','听':'聽','启':'啟','吴':'吳','员':'員','周':'週','响':'響','器':'器','嘱':'囑','团':'團','园':'園','国':'國','图':'圖','圆':'圓','圣':'聖','场':'場','块':'塊','坛':'壇','坝':'壩','垒':'壘','壮':'壯','声':'聲','壳':'殼','壶':'壺','处':'處','复':'複','备':'備','头':'頭','夹':'夾','夺':'奪','奋':'奮','妇':'婦','妈':'媽','孙':'孫','学':'學','宁':'寧','宝':'寶','实':'實','宫':'宮','宽':'寬','对':'對','导':'導','尔':'爾','尘':'塵','尝':'嘗','长':'長','门':'門','闭':'閉','开':'開','闾':'閭','间':'間','闲':'閒','闹':'鬧','闻':'聞','阁':'閣','阂':'閡','阅':'閱','阔':'闊','队':'隊','阳':'陽','阴':'陰','阵':'陣','阶':'階','陆':'陸','际':'際','陈':'陳','陕':'陝','随':'隨','隐':'隱','隶':'隸','难':'難','雏':'雛','杂':'雜','离':'離','电':'電','灵':'靈','静':'靜','面':'麵','韦':'韋','韩':'韓','页':'頁','顶':'頂','项':'項','顺':'順','须':'須','预':'預','顽':'頑','顾':'顧','顿':'頓','颇':'頗','领':'領','颁':'頒','颂':'頌','颊':'頰','频':'頻','颗':'顆','题':'題','颜':'顏','额':'額','颠':'顛','类':'類','显':'顯','风':'風','飞':'飛','马':'馬','驶':'駛','驼':'駝','驾':'駕','骑':'騎','骗':'騙','骚':'騷','验':'驗','惊':'驚','鱼':'魚','鸟':'鳥','鸡':'雞','鸭':'鴨','鹅':'鵝','麦':'麥','黄':'黃','点':'點','龙':'龍','龟':'龜','简':'簡','汉':'漢','语':'語','转':'轉','标':'標','数':'數','据':'據','权':'權','财':'財','质':'質','户':'戶','窗':'窗','灯':'燈','脑':'腦','网':'網','络':'絡','键':'鍵','盘':'盤','示':'示','软':'軟','件':'件','码':'碼','程':'程','序':'序','库':'庫','编':'編','译':'譯','号':'號','链':'鏈','接':'接','储':'儲','试':'試','级':'級','组':'組','织':'織','纪':'紀','约':'約','红':'紅','纲':'綱','纳':'納','纵':'縱','纷':'紛','纸':'紙','纹':'紋','纺':'紡','纽':'紐','线':'線','练':'練','绅':'紳','细':'細','终':'終','绊':'絆','绍':'紹','经':'經','绑':'綁','结':'結','绕':'繞','绘':'繪','给':'給','绝':'絕','绞':'絞','统':'統','继':'繼','维':'維','连':'連','适':'適','这':'這','还':'還','进':'進','远':'遠','运':'運','过':'過','道':'道','达':'達','违':'違','遥':'遙','逊':'遜','通':'通','逻':'邏','邮':'郵','邹':'鄒','邻':'鄰','郁':'鬱','郊':'郊','郎':'郎','郑':'鄭','都':'都','邓':'鄧','并':'並','兑':'兌','兰':'蘭','羞':'羞','着':'著','里':'裡','将':'將','当':'當','说':'說','时':'時','来':'來','种':'種','吗':'嗎','吧':'吧','啊':'啊','么':'麼','没':'沒','了':'了','不':'不','好':'好','我':'我','你':'你','他':'他','她':'她','是':'是','的':'的','在':'在','有':'有','和':'和','就':'就','也':'也','要':'要','可':'可','以':'以','能':'能','很':'很','更':'更','最':'最','太':'太','多':'多','少':'少','大':'大','小':'小','上':'上','下':'下','前':'前','后':'後','左':'左','右':'右','外':'外','高':'高','低':'低','短':'短','新':'新','旧':'舊','古':'古','今':'今','天':'天','地':'地','日':'日','月':'月','星':'星','雨':'雨','山':'山','水':'水','花':'花','草':'草','木':'木','林':'林','森':'森','石':'石','金':'金','银':'銀','铜':'銅','铁':'鐵','玉':'玉','珍':'珍','珠':'珠','美':'美','雅':'雅','文':'文','武':'武','明':'明','暗':'暗','春':'春','夏':'夏','秋':'秋','冬':'冬','早':'早','晚':'晚','朝':'朝','夕':'夕','南':'南','西':'西','北':'北','中':'中','家':'家','園':'園','書':'書','畫':'畫','詩':'詩','詞':'詞','赋':'賦','曲':'曲','歌':'歌','舞':'舞','楼':'樓','亭':'亭','桥':'橋','路':'路','城':'城','市':'市','村':'村','镇':'鎮','江':'江','河':'河','湖':'湖','海':'海','洋':'洋','池':'池','塘':'塘','溪':'溪','流':'流','波':'波','浪':'浪','潮':'潮','泉':'泉','瀑':'瀑','松':'松','竹':'竹','梅':'梅','菊':'菊','荷':'荷','莲':'蓮','柳':'柳','杨':'楊','桃':'桃','李':'李','杏':'杏','桂':'桂','枫':'楓','柏':'柏','槐':'槐','榆':'榆','桑':'桑','麻':'麻','棉':'棉','绫':'綾','罗':'羅','绸':'綢','缎':'緞','锦':'錦','绣':'繡','蓝':'藍','绿':'綠','紫':'紫','白':'白','黑':'黑','灰':'灰','青':'青','碧':'碧','翠':'翠','苍':'蒼','穹':'穹','宇':'宇','宙':'宙','乾':'乾','坤':'坤','剑':'劍','刀':'刀','弓':'弓','箭':'箭','矛':'矛','盾':'盾','车':'車','舟':'舟','船':'船','帆':'帆','桨':'槳','櫓':'櫓','馬':'馬','牛':'牛','羊':'羊','雀':'雀','燕':'燕','鹤':'鶴','鸿':'鴻','雁':'雁','鹏':'鵬','凤':'鳳','凰':'凰','虎':'虎','豹':'豹','狼':'狼','猿':'猿','猴':'猴','鹿':'鹿','象':'象','熊':'熊','狮':'獅','麟':'麟','蛇':'蛇','虾':'蝦','蟹':'蟹','蝉':'蟬','蝶':'蝶','蜂':'蜂','萤':'螢','蛾':'蛾','蚕':'蠶','耕':'耕','耘':'耘','植':'植','物':'物','苗':'苗','禾':'禾','稻':'稻','谷':'穀','栗':'栗','黍':'黍','稷':'稷','菽':'菽','帛':'帛','衣':'衣','裳':'裳','冠':'冠','冕':'冕','服':'服','饰':'飾','佩':'佩','环':'環','玦':'玦','璧':'璧','玺':'璽','印':'印','章':'章','符':'符','节':'節','信':'信','札':'札','牍':'牘','卷':'卷','函':'函','封':'封','缄':'緘','展':'展','舒':'舒','阖':'闔','辟':'闢','锁':'鎖','钥':'鑰','匙':'匙','画':'畫','贴':'貼','拓':'拓','碑':'碑','帖':'帖','法':'法','墨':'墨','笔':'筆','砚':'硯','绢':'絹','素':'素','笺':'箋','屏':'屏','帘':'簾','帐':'帳','帷':'帷','幔':'幔','幕':'幕','烛':'燭','香':'香','炉':'爐','鼎':'鼎','尊':'尊','杯':'杯','盏':'盞','碗':'碗','碟':'碟','箸':'箸','勺':'勺','案':'案','桌':'桌','椅':'椅','床':'床','榻':'榻','枕':'枕','衾':'衾','被':'被','褥':'褥','席':'席','垫':'墊','障':'障','蔽':'蔽','逸':'逸','志':'志','趣':'趣','情':'情','怀':'懷','思':'思','念':'念','想':'想','忆':'憶','记':'記','铭':'銘','刻':'刻','骨':'骨','心':'心','魂':'魂','魄':'魄','梦':'夢','幻':'幻','影':'影','形':'形','迹':'跡','踪':'蹤','踨':'踨','音':'音','韵':'韻','律':'律','调':'調','谱':'譜','弦':'弦','琴':'琴','瑟':'瑟','筝':'箏','琶':'琶','笛':'笛','箫':'簫','管':'管','笙':'笙','鼓':'鼓','钟':'鐘','磬':'磬','铃':'鈴','铎':'鐸','铙':'鐃','钹':'鈸','锣':'鑼','钲':'鉦','铩':'鎩','戟':'戟','戈':'戈','弩':'弩','镞':'鏃','甲':'甲','胄':'胄','盔':'盔','铠':'鎧','袍':'袍','裙':'裙','裤':'褲','袜':'襪','鞋':'鞋','帽':'帽','巾':'巾','帕':'帕','带':'帶','绶':'綬','绦':'絛','缨':'纓','绌':'絀','缕':'縷','累':'累','索':'索','绳':'繩','缆':'纜','纤':'纖','纶':'綸','绮':'綺','绥':'綏','罟':'罟','罩':'罩','罘':'罘','罳':'罳','罨':'罨','幂':'冪','胼':'胼','胝':'胝','胎':'胎','胞':'胞','胡':'胡','胤':'胤','胥':'胥','胯':'胯','胱':'胱','胴':'胴','胭':'胭','脆':'脆','脂':'脂','胸':'胸','胳':'胳','脏':'髒','脐':'臍','脓':'膿','脖':'脖','脚':'腳','脞':'脞','脩':'脩','脬':'脬','脯':'脯','脱':'脫','脲':'脲','脸':'臉','脾':'脾','腆':'腆','腊':'臘','腌':'醃','腑':'腑','腓':'腓','腔':'腔','腕':'腕','腴':'腴','肾':'腎','肿':'腫','胀':'脹','胁':'脅','胆':'膽','胃':'胃','肠':'腸','腹':'腹','腺':'腺','腻':'膩','腰':'腰','腥':'腥','腮':'腮','膺':'膺','臂':'臂','臀':'臀','臊':'臊','臌':'臌','臆':'臆','臾':'臾','舀':'舀','舂':'舂','舄':'舄','艮':'艮','良':'良','艰':'艱','色':'色','艳':'豔','艺':'藝','艾':'艾','芋':'芋','芍':'芍','芒':'芒','芙':'芙','芜':'蕪','芝':'芝','芥':'芥','芦':'蘆','芬':'芬','芭':'芭','芯':'芯','芹':'芹','芪':'芪','苈':'藶','苋':'莧','苌':'萇','苎':'苧','苏':'蘇','苜':'苜','苞':'苞','茎':'莖','苔':'苔','茅':'茅','茱':'茱','茑':'蔦','茔':'塋','茗':'茗','茜':'茜','荏':'荏','荐':'薦','茧':'繭','茵':'茵','茶':'茶','茸':'茸','茹':'茹','荀':'荀','荃':'荃','荆':'荊','荇':'荇','莠':'莠','菀':'菀','萍':'萍','菠':'菠','营':'營','萦':'縈','萧':'蕭','萨':'薩','落':'落','叶':'葉','著':'著','葡':'葡','董':'董','葭':'葭','蒹':'蒹','蒲':'蒲','蒙':'蒙','蓉':'蓉','蓑':'蓑','蒺':'蒺','蔓':'蔓','蔚':'蔚','蔡':'蔡','蔬':'蔬','蕴':'蘊','蕾':'蕾','薇':'薇','薏':'薏','薛':'薛','蕨':'蕨','薄':'薄','薜':'薜','藏':'藏','藐':'藐','藕':'藕','藤':'藤','藩':'藩','藻':'藻','蕃':'蕃','蕙':'蕙','芷':'芷','蘅':'蘅','蘩':'蘩','蘸':'蘸','蘧':'蘧','蘼':'蘼','虍':'虍','虏':'虜','虐':'虐','虔':'虔','虚':'虛','虞':'虞','虫':'蟲','虬':'虯','虮':'蟣','虱':'蝨','蚁':'蟻','蝇':'蠅','蜃':'蜃','蜇':'蜇','蜜':'蜜','蜡':'蠟','蜥':'蜥','蝠':'蝠','蝟':'蝟','蝎':'蠍','蝗':'蝗','蝙':'蝙','蝈':'蟈','蝮':'蝮','蝴':'蝴','螂':'螂','螳':'螳','螨':'蟎','蟒':'蟒','蟾':'蟾','蠡':'蠡','蠢':'蠢','蠹':'蠹','血':'血','衅':'釁','行':'行','衍':'衍','衔':'銜','街':'街','衙':'衙','衡':'衡','徽':'徽','衢':'衢','衫':'衫','衬':'襯','衮':'袞','衰':'衰','衷':'衷','衲':'衲','衽':'衽','衿':'衿','袂':'袂','袄':'襖','袅':'裊','袈':'袈','袋':'袋','袒':'袒','袖':'袖','袤':'袤','袭':'襲','袪':'袪','裁':'裁','裂':'裂','装':'裝','裔':'裔','裕':'裕','裟':'裟','補':'補','裨':'裨','裰':'裰','裴':'裴','裸':'裸','裾':'裾','褂':'褂','褚':'褚','褐':'褐','褒':'褒','襁':'襁','襟':'襟','襦':'襦','襪':'襪','襬':'襬','襭':'襭','襯':'襯','襴':'襴','襶':'襶','襷':'襷','襾':'襾','覆':'覆','覃':'覃','覈':'覈','见':'見','規':'規','覓':'覓','視':'視','覘':'覘','覜':'覜','覡':'覡','覥':'覥','覦':'覦','親':'親','覬':'覬','覯':'覯','覲':'覲','覷':'覷','覺':'覺','覿':'覿','觀':'觀','角':'角','觚':'觚','觝':'觝','解':'解','觥':'觥','觸':'觸','言':'言','訂':'訂','訃':'訃','計':'計','訊':'訊','訌':'訌','討':'討','訐':'訐','訒':'訒','訓':'訓','訕':'訕','訖':'訖','託':'託','記':'記','訛':'訛','訝':'訝','訟':'訟','訥':'訥','訩':'訩','訣':'訣','訪':'訪','設':'設','許':'許','訴':'訴','訶':'訶','診':'診','註':'註','証':'証','訽':'訽','詁':'詁','詆':'詆','詈':'詈','詎':'詎','詐':'詐','詒':'詒','詔':'詔','評':'評','詖':'詖','詗':'詗','詘':'詘','詛':'詛','詠':'詠','詡':'詡','詢':'詢','詣':'詣','試':'試','詫':'詫','詬':'詬','詭':'詭','詮':'詮','詰':'詰','話':'話','該':'該','詳':'詳','詵':'詵','詼':'詼','詿':'詿','誄':'誄','誅':'誅','誆':'誆','誇':'誇','誌':'誌','認':'認','誑':'誑','誒':'誒','誓':'誓','誕':'誕','誘':'誘','誚':'誚','語':'語','誠':'誠','誡':'誡','誤':'誤','誥':'誥','誦':'誦','誨':'誨','說':'說','請':'請','課':'課','誶':'誶','誰':'誰','諒':'諒','論':'論','誹':'誹','誼':'誼','調':'調','諂':'諂','諄':'諄','談':'談','諉':'諉','諍':'諍','諏':'諏','諑':'諑','諗':'諗','諛':'諛','諜':'諜','諞':'諞','諡':'諡','諢':'諢','諤':'諤','諦':'諦','諧':'諧','諫':'諫','諭':'諭','諮':'諮','諱':'諱','諳':'諳','諶':'諶','諷':'諷','諸':'諸','諺':'諺','諼':'諼','諾':'諾','謀':'謀','謁':'謁','謂':'謂','謄':'謄','謅':'謅','謊':'謊','謎':'謎','謐':'謐','謗':'謗','謙':'謙','謚':'謚','講':'講','謝':'謝','謠':'謠','謨':'謨','謫':'謫','謬':'謬','謳':'謳','謹':'謹','謾':'謾','譁':'譁','譅':'譅','證':'證','譌':'譌','譎':'譎','譏':'譏','譖':'譖','識':'識','譙':'譙','譚':'譚','譛':'譛','譜':'譜','譞':'譞','譟':'譟','譠':'譠','譡':'譡','譢':'譢','譣':'譣','譤':'譤','譥':'譥','警':'警','譩':'譩','譪':'譪','譫':'譫','譬':'譬','譭':'譭','譮':'譮','譯':'譯','議':'議','譱':'譱','譲':'譲','譳':'譳','譴':'譴','譵':'譵','譶':'譶','護':'護','譸':'譸','譹':'譹','譺':'譺','譻':'譻','譼':'譼','譽':'譽','譾':'譾','讀':'讀','讁':'讁','讂':'讂','讃':'讃','讄':'讄','讅':'讅','讆':'讆','讇':'讇','讈':'讈','讉':'讉','變':'變','讋':'讋','讌':'讌','讍':'讍','讎':'讎','讏':'讏','讐':'讐','讑':'讑','讒':'讒','讓':'讓','讔':'讔','讕':'讕','讖':'讖','讗':'讗','讘':'讘','讙':'讙','讚':'讚','讛':'讛','讜':'讜','讝':'讝','讞':'讞','讟':'讟','讠':'訁','计':'計','订':'訂','讣':'訃','认':'認','讥':'譏','讦':'訐','讧':'訌','讨':'討','讪':'訕','讫':'訖','讬':'託','训':'訓','议':'議','讯':'訊','讲':'講','讳':'諱','讴':'謳','讵':'詎','讶':'訝','讷':'訥','许':'許','讹':'訛','论':'論','讼':'訟','讽':'諷','设':'設','访':'訪','诀':'訣','证':'證','诂':'詁','诃':'訶','评':'評','诅':'詛','识':'識','诈':'詐','诉':'訴','诋':'詆','诌':'謅','词':'詞','诎':'詘','诏':'詔','诐':'詖','诒':'詒','诓':'誆','诔':'誄','诖':'詿','诗':'詩','诘':'詰','诙':'詼','诚':'誠','诛':'誅','诜':'詵','话':'話','诞':'誕','诟':'詬','诠':'詮','诡':'詭','询':'詢','诣':'詣','诤':'諍','该':'該','详':'詳','诧':'詫','诨':'諢','诩':'詡','诪':'譸','诫':'誡','诬':'誣','诮':'誚','误':'誤','诰':'誥','诱':'誘','诲':'誨','诵':'誦','诶':'誒','请':'請','诸':'諸','诹':'諏','诺':'諾','读':'讀','诼':'諑','诽':'誹','课':'課','诿':'諉','谀':'諛','谁':'誰','谂':'諗','谄':'諂','谅':'諒','谆':'諄','谇':'誶','谈':'談','谊':'誼','谋':'謀','谌':'諶','谍':'諜','谎':'謊','谏':'諫','谐':'諧','谑':'謔','谒':'謁','谓':'謂','谔':'諤','谕':'諭','谖':'諼','谗':'讒','谘':'諮','谙':'諳','谚':'諺','谛':'諦','谜':'謎','谝':'諞','谞':'諝','谟':'謨','谠':'讜','谡':'謖','谢':'謝','谣':'謠','谤':'謗','谥':'謚','谦':'謙','谧':'謐','谨':'謹','谩':'謾','谪':'謫','谫':'譾','谬':'謬','谭':'譚','谮':'譖','谯':'譙','谰':'讕','谲':'譎','谳':'讞','谴':'譴','谵':'譫','谶':'讖','贝':'貝','贞':'貞','负':'負','贡':'貢','责':'責','贤':'賢','败':'敗','账':'賬','货':'貨','贩':'販','贪':'貪','贫':'貧','购':'購','贯':'貫','贱':'賤','贵':'貴','贷':'貸','贸':'貿','费':'費','贺':'賀','贼':'賊','贿':'賄','赂':'賂','赃':'贓','资':'資','赅':'賅','贾':'賈','赁':'賃','赇':'賕','赈':'賑','赉':'賚','赊':'賒','赌':'賭','赎':'贖','赏':'賞','赐':'賜','赒':'賙','赓':'賡','赔':'賠','赕':'賧','赖':'賴','赗':'賵','赘':'贅','赙':'賻','赚':'賺','赛':'賽','赜':'賾','赞':'贊','赟':'贇','赠':'贈','赡':'贍','赢':'贏','赣':'贛','赤':'赤','赦':'赦','赧':'赧','赫':'赫','走':'走','赵':'趙','赶':'趕','趋':'趨','趟':'趟','足':'足','趾':'趾','跃':'躍','跋':'跋','跌':'跌','跑':'跑','跛':'跛','距':'距','跟':'跟','跨':'跨','跪':'跪','跳':'跳','践':'踐','跷':'蹺','跸':'蹕','跹':'躚','跺':'跺','跻':'躋','踊':'踴','踌':'躊','踏':'踏','踩':'踩','踬':'躓','踮':'踮','踵':'踵','踹':'踹','踽':'踽','蹀':'蹀','蹁':'蹁','蹂':'蹂','蹄':'蹄','蹇':'蹇','蹈':'蹈','蹉':'蹉','蹊':'蹊','蹋':'蹋','蹌':'蹌','蹍':'蹍','蹎':'蹎','蹏':'蹏','蹐':'蹐','蹑':'躡','蹒':'蹣','蹓':'蹓','蹔':'蹔','蹕':'蹕','蹖':'蹖','蹗':'蹗','蹘':'蹘','蹙':'蹙','蹚':'蹚','蹛':'蹛','蹜':'蹜','蹝':'蹝','蹞':'蹞','蹟':'蹟','蹠':'蹠','蹡':'蹡','蹢':'蹢','蹣':'蹣','蹤':'蹤','蹥':'蹥','蹦':'蹦','蹧':'蹧','蹨':'蹨','蹩':'蹩','蹪':'蹪','蹫':'蹫','蹬':'蹬','蹭':'蹭','蹮':'蹮','蹯':'蹯','蹰':'躕','蹱':'蹱','蹲':'蹲','蹳':'蹳','蹴':'蹴','蹵':'蹵','蹶':'蹶','蹷':'蹷','蹸':'蹸','蹹':'蹹','蹺':'蹺','蹻':'蹻','蹼':'蹼','蹽':'蹽','蹾':'蹾','蹿':'躥','躀':'躀','躁':'躁','躂':'躂','躃':'躃','躄':'躄','躅':'躅','躆':'躆','躇':'躇','躈':'躈','躉':'躉','躊':'躊','躋':'躋','躌':'躌','躍':'躍','躎':'躎','躏':'躪','躐':'躐','躑':'躑','躒':'躒','躓':'躓','躔':'躔','躕':'躕','躖':'躖','躗':'躗','躘':'躘','躙':'躙','躚':'躚','躛':'躛','躜':'躦','躝':'躝','躞':'躞','躟':'躟','躠':'躠','躡':'躡','躢':'躢','躣':'躣','躤':'躤','躥':'躥','躦':'躦','躧':'躧','躨':'躨','躩':'躩','躪':'躪','躭':'躭','躮':'躮','躱':'躱','躳':'躳','躴':'躴','躵':'躵','躶':'躶','躷':'躷','躸':'躸','躹':'躹','躻':'躻','躼':'躼','躽':'躽','躾':'躾','躿':'躿','軀':'軀','軁':'軁','軂':'軂','軃':'軃','軄':'軄','軅':'軅','軆':'軆','軇':'軇','軈':'軈','軉':'軉','車':'車','軋':'軋','軌':'軌','軍':'軍','軏':'軏','軐':'軐','軑':'軑','軒':'軒','軓':'軓','軔':'軔','軕':'軕','軖':'軖','軗':'軗','軘':'軘','軙':'軙','軚':'軚','軛':'軛','軜':'軜','軝':'軝','軞':'軞','軟':'軟','軠':'軠','軡':'軡','転':'転','軣':'軣','軤':'軤','軥':'軥','軦':'軦','軧':'軧','軨':'軨','軩':'軩','軪':'軪','軫':'軫','軬':'軬','軭':'軭','軮':'軮','軯':'軯','軰':'軰','軱':'軱','軲':'軲','軳':'軳','軴':'軴','軵':'軵','軶':'軶','軷':'軷','軸':'軸','軹':'軹','軺':'軺','軻':'軻','軼':'軼','軽':'軽','軾':'軾','軿':'軿','輀':'輀','輁':'輁','輂':'輂','較':'較','輄':'輄','輅':'輅','輆':'輆','輇':'輇','輈':'輈','載':'載','輊':'輊','輋':'輋','輌':'輌','輍':'輍','輎':'輎','輏':'輏','輐':'輐','輑':'輑','輒':'輒','輓':'輓','輔':'輔','輕':'輕','輖':'輖','輗':'輗','輘':'輘','輙':'輙','輚':'輚','輛':'輛','輜':'輜','輝':'輝','輞':'輞','輟':'輟','輠':'輠','輡':'輡','輢':'輢','輣':'輣','輤':'輤','輥':'輥','輦':'輦','輧':'輧','輨':'輨','輩':'輩','輪':'輪','輫':'輫','輬':'輬','輭':'輭','輮':'輮','輯':'輯','輰':'輰','輱':'輱','輲':'輲','輳':'輳','輴':'輴','輵':'輵','輶':'輶','輷':'輷','輸':'輸','輹':'輹','輺':'輺','輻':'輻','輼':'輼','輽':'輽','輾':'輾','輿':'輿','轀':'轀','轁':'轁','轂':'轂','轃':'轃','轄':'轄','轅':'轅','轆':'轆','轇':'轇','轈':'轈','轉':'轉','轊':'轊','轋':'轋','轌':'轌','轍':'轍','轎':'轎','轏':'轏','轐':'轐','轑':'轑','轒':'轒','轓':'轓','轔':'轔','轕':'轕','轖':'轖','轗':'轗','轘':'轘','轙':'轙','轚':'轚','轛':'轛','轜':'轜','轝':'轝','轞':'轞','轟':'轟','轠':'轠','轡':'轡','轢':'轢','轣':'轣','轤':'轤','轥':'轥','辻':'辻','込':'込','辿':'辿','纟':'糹','纠':'糾','纡':'紆','红':'紅','纣':'紂','纥':'紇','约':'約','级':'級','纨':'紈','纩':'纊','纪':'紀','纫':'紉','纬':'緯','纭':'紜','纮':'紘','纯':'純','纰':'紕','纱':'紗','纲':'綱','纳':'納','纴':'紝','纵':'縱','纶':'綸','纷':'紛','纸':'紙','纹':'紋','纺':'紡','纻':'紵','纼':'紖','纽':'紐','纾':'紓','线':'線','绀':'紺','绁':'紲','绂':'紱','练':'練','组':'組','绅':'紳','细':'細','织':'織','终':'終','绉':'縐','绊':'絆','绋':'紼','绌':'絀','绍':'紹','绎':'繹','经':'經','绐':'紿','绑':'綁','绒':'絨','结':'結','绔':'絝','绕':'繞','绖':'絰','绗':'絎','绘':'繪','给':'給','绚':'絢','绛':'絳','络':'絡','绝':'絕','绞':'絞','统':'統','绠':'綆','绡':'綃','绢':'絹','绣':'繡','绤':'綌','绥':'綏','绦':'絛','继':'繼','绨':'綈','绩':'績','绪':'緒','绫':'綾','续':'續','绮':'綺','绯':'緋','绰':'綽','绱':'緔','绲':'緄','绳':'繩','维':'維','绵':'綿','绶':'綬','绷':'繃','绸':'綢','绹':'綯','绺':'綹','绻':'綣','综':'綜','绽':'綻','绾':'綰','绿':'綠','缀':'綴','缁':'緇','缂':'緙','缃':'緗','缄':'緘','缅':'緬','缆':'纜','缇':'緹','缈':'緲','缉':'緝','缊':'縕','缋':'繢','缌':'緦','缍':'綞','缎':'緞','缏':'緶','缐':'線','缑':'緱','缒':'縋','缓':'緩','缔':'締','缕':'縷','编':'編','缗':'緡','缘':'緣','缙':'縉','缚':'縛','缛':'縟','缜':'縝','缝':'縫','缞':'縗','缟':'縞','缠':'纏','缡':'縭','缢':'縊','缣':'縑','缤':'繽','缥':'縹','缦':'縵','缧':'縲','缨':'纓','缩':'縮','缪':'繆','缫':'繅','缬':'纈','缭':'繚','缮':'繕','缯':'繒','缰':'繮','缱':'繾','缲':'繰','缳':'繯','缵':'纘','缨':'纓','罒':'罒','罪':'罪','置':'置','罚':'罰','署':'署','骂':'罵','罢':'罷','罗':'羅','罟':'罟','罩':'罩','罨':'罨','罴':'羆','罹':'罹','羁':'羈','罽':'罽','罾':'罾','盍':'盍','盖':'蓋','盗':'盜','盘':'盤','盛':'盛','盟':'盟','盥':'盥','盦':'盦','目':'目','盱':'盱','盲':'盲','盻':'盻','眉':'眉','眄':'眄','眇':'眇','盼':'盼','眍':'眍','眙':'眙','眚':'眚','眛':'眛','真':'真','眠':'眠','眢':'眢','眣':'眣','眦':'眥','眨':'眨','眩':'眩','眬':'矓','眭':'眭','眯':'瞇','眵':'眵','眶':'眶','眷':'眷','眸':'眸','眺':'眺','眼':'眼','眹':'眹','眾':'眾','睇':'睇','睊':'睊','睍':'睍','睎':'睎','睐':'睞','睑':'瞼','睚':'睚','睛':'睛','睁':'睜','睢':'睢','督':'督','睥':'睥','睦':'睦','睨':'睨','睪':'睪','睫':'睫','睬':'睬','睹':'睹','睽':'睽','睾':'睾','睿':'睿','瞀':'瞀','瞄':'瞄','瞅':'瞅','瞇':'瞇','瞋':'瞋','瞌':'瞌','瞍':'瞍','瞎':'瞎','瞑':'瞑','瞒':'瞞','瞟':'瞟','瞠':'瞠','瞡':'瞡','瞥':'瞥','瞧':'瞧','瞪':'瞪','瞨':'瞨','瞰':'瞰','瞳':'瞳','瞵':'瞵','瞷':'瞷','瞹':'瞹','瞻':'瞻','瞽':'瞽','瞿':'瞿','矇':'矇','矉':'矉','矍':'矍','矐':'鑮','矗':'矗','鑫':'鑫','灥':'灥','灦':'灦','灧':'灧','灨':'灨','灩':'灩','灪':'灪','火':'火','灭':'滅','灯':'燈','灿':'燦','炀':'煬','炉':'爐','炒':'炒','炫':'炫','炬':'炬','炭':'炭','炮':'砲','炯':'炯','炳':'炳','炸':'炸','点':'點','炼':'煉','炽':'熾','烁':'爍','烂':'爛','烃':'烴','烛':'燭','烟':'煙','烦':'煩','烧':'燒','烛':'燭','烨':'燁','烩':'燴','烫':'燙','烬':'燼','热':'熱','焕':'煥','烹':'烹','焙':'焙','焚':'焚','焰':'焰','焙':'焙','煨':'煨','煳':'糊','煲':'煲','煸':'煸','煺':'煺','煽':'煽','熄':'熄','熏':'熏','熔':'熔','熘':'溜','熙':'熙','熟':'熟','熠':'熠','熨':'熨','熬':'熬','熹':'熹','燃':'燃','燊':'燊','燋':'燋','燎':'燎','燔':'燔','燕':'燕','燠':'燠','燥':'燥','燧':'燧','燮':'燮','燹':'燹','燻':'燻','燼':'燼','燽':'燽','燾':'燾','燿':'燿','爀':'爀','爁':'爁','爂':'爂','爃':'爃','爄':'爄','爅':'爅','爆':'爆','爇':'爇','爈':'爈','爉':'爉','爊':'爊','爋':'爋','爌':'爌','爍':'爍','爎':'爎','爏':'爏','爐':'爐','爑':'爑','爒':'爒','爓':'爓','爔':'爔','爕':'爕','爖':'爖','爗':'爗','爘':'爘','爙':'爙','爚':'爚','爛':'爛','爜':'爜','爝':'爝','爞':'爞','爟':'爟','爠':'爠','爡':'爡','爢':'爢','爣':'爣','爤':'爤','爥':'爥','爦':'爦','爧':'爧','爨':'爨','爩':'爩','灪':'灪','𤆌':'𤆌','𤆍':'𤆍','𤆎':'𤆎','𤆏':'𤆏','𤆐':'𤆐','𤆑':'𤆑','𤆒':'𤆒','𤆓':'𤆓','𤆔':'𤆔','𤆕':'𤆕','𤆖':'𤆖','𤆗':'𤆗','𤆘':'𤆘','𤆙':'𤆙','𤆚':'𤆚','𤆛':'𤆛','𤆜':'𤆜','𤆝':'𤆝','𤆞':'𤆞','𤆟':'𤆟','𤆠':'𤆠','𤆡':'𤆡','𤆢':'𤆢','𤆣':'𤆣','𤆤':'𤆤','𤆥':'𤆥','𤆦':'𤆦','𤆧':'𤆧','𤆨':'𤆨','𤆩':'𤆩','𤆪':'𤆪','𤆫':'𤆫','𤆬':'𤆬','𤆭':'𤆭','𤆮':'𤆮','𤆯':'𤆯','𤆰':'𤆰','𤆱':'𤆱','𤆲':'𤆲','𤆳':'𤆳','𤆴':'𤆴','𤆵':'𤆵','𤆶':'𤆶','𤆷':'𤆷','𤆸':'𤆸','𤆹':'𤆹','𤆺':'𤆺','𤆻':'𤆻','𤆼':'𤆼','𤆽':'𤆽','𤆾':'𤆾','𤆿':'𤆿','𤇀':'𤇀','𤇁':'𤇁','𤇂':'𤇂','𤇃':'𤇃','𤇄':'𤇄','𤇅':'𤇅','𤇆':'𤇆','𤇇':'𤇇','𤇈':'𤇈','𤇉':'𤇉','𤇊':'𤇊','𤇋':'𤇋','𤇌':'𤇌','𤇍':'𤇍','𤇎':'𤇎','𤇏':'𤇏','𤇐':'𤇐','𤇑':'𤇑','𤇒':'𤇒','𤇓':'𤇓','𤇔':'𤇔','𤇕':'𤇕','𤇖':'𤇖','𤇗':'𤇗','𤇘':'𤇘','劦':'劦','劧':'劧','劬':'劬','劭':'劭','劮':'劮','劯':'劯','劰':'劰','労':'労','劵':'劵','券':'券','劶':'劶','劷':'劷','劸':'劸','効':'効','劺':'劺','劻':'劻','劼':'劼','劽':'劽','劾':'劾','勀':'勀','勁':'勁','勂':'勂','勃':'勃','勄':'勄','勅':'勅','勆':'勆','勇':'勇','勈':'勈','勉':'勉','勊':'勊','勋':'勳','勌':'勌','勍':'勍','勎':'勎','勏':'勏','勐':'勐','勑':'勑','勒':'勒','勓':'勓','勔':'勔','勖':'勗','勗':'勗','勚':'勩','勛':'勛','勜':'勜','勝':'勝','勞':'勞','勠':'勠','勡':'勡','勢':'勢','勣':'勣','勤':'勤','勥':'勥','勦':'勦','勧':'勧','勨':'勨','勩':'勩','勪':'勪','勫':'勫','勬':'勬','勭':'勭','勮':'勮','勯':'勯','勰':'勰','勱':'勱','勲':'勲','勳':'勳','勴':'勴','勵':'勵','勶':'勶','勷':'勷','勸':'勸','勹':'勹','勺':'勺','勻':'勻','勼':'勼','勽':'勽','勾':'勾','勿':'勿','匀':'勻','匁':'匁','匂':'匂','匃':'匃','匄':'匄','包':'包','匆':'匆','匇':'匇','匈':'匈','匉':'匉','匊':'匊','匋':'匋','匌':'匌','匍':'匍','匎':'匎','匏':'匏','匐':'匐','匑':'匑','匒':'匒','匓':'匓','匔':'匔','匕':'匕','化':'化','北':'北','匘':'匘','匙':'匙','匜':'匜','匝':'匝','匞':'匞','匟':'匟','匠':'匠','匡':'匡','匢':'匢','匣':'匣','匤':'匤','匥':'匥','匦':'匭','匧':'匧','匨':'匨','匩':'匩','匪':'匪','匫':'匫','匬':'匬','匭':'匭','匮':'匱','匮':'匱','匰':'匰','匱':'匱','匲':'匲','匳':'匳','匴':'匴','匵':'匵','匶':'匶','匷':'匷','匸':'匸','區':'區','医':'醫','匼':'匼','匽':'匽','匿':'匿','區':'區','十':'十','卂':'卂','卄':'卄','卅':'卅','卆':'卆','千':'千','卋':'卋','卌':'卌','卍':'卍','卐':'卐','協':'協','単':'単','卛':'卛','卡':'卡','卝':'卝','卟':'卟','占':'佔','卣':'卣','卥':'卥','卦':'卦','卧':'卧','卨':'卨','卩':'卩','卪':'卪','卫':'衛','卬':'卬','卭':'卭','卮':'卮','卯':'卯','印':'印','危':'危','卲':'卲','即':'即','却':'卻','卵':'卵','卶':'卶','卵':'卵','卼':'卼','卿':'卿','厃':'厃','厄':'厄','历':'歷','叀':'叀','叁':'叁','参':'參','參':'參','叄':'叄','叅':'叅','叆':'靉','叇':'靉','又':'又','叉':'叉','及':'及','友':'友','双':'雙','反':'反','収':'収','叐':'叐','发':'發','叒':'叒','叓':'叓','叔':'叔','取':'取','受':'受','变':'變','叙':'叙','叚':'叚','叛':'叛','叜':'叜','叝':'叝','叞':'叞','叟':'叟','叡':'叡','叢':'叢','口':'口','𠮟':'𠮟','𠮠':'𠮠','𠮡':'𠮡','𠮢':'𠮢','𠮣':'𠮣','𠮤':'𠮤','𠮥':'𠮥','𠮦':'𠮦','𠮧':'𠮧','𠮨':'𠮨','𠮩':'𠮩','𠮪':'𠮪','𠮫':'𠮫','𠮬':'𠮬','𠮭':'𠮭','𠮮':'𠮮','𠮯':'𠮯','𠮰':'𠮰','𠮱':'𠮱','𠮲':'𠮲','𠮳':'𠮳','𠮴':'𠮴','𠮵':'𠮵','𠮶':'𠮶','𠮷':'𠮷','𠮸':'𠮸','𠮹':'𠮹','𠮺':'𠮺','𠮻':'𠮻','𠮼':'𠮼','𠮽':'𠮽','𠮾':'𠮾','𠮿':'𠮿','𠯀':'𠯀','𡿨':'𡿨','𡿩':'𡿩','𡿪':'𡿪','𡿫':'𡿫','𡿬':'𡿬','𡿭':'𡿭','𡿮':'𡿮','𡿯':'𡿯','𡿰':'𡿰','𡿱':'𡿱','𡿲':'𡿲','𡿳':'𡿳','𡿴':'𡿴','𡿵':'𡿵','𡿶':'𡿶','𡿷':'𡿷','𡿸':'𡿸','𡿹':'𡿹','𡿺':'𡿺','𡿻':'𡿻','𡿼':'𡿼','𡿽':'𡿽','𡿾':'𡿾','𡿿':'𡿿','𢀀':'𢀀','𢀁':'𢀁','𢀂':'𢀂','𢀃':'𢀃','𢀄':'𢀄','𢀅':'𢀅','𢀆':'𢀆','𢀇':'𢀇','𢀈':'𢀈','𢀉':'𢀉','𢀊':'𢀊','𢀋':'𢀋','𢀌':'𢀌','𢀍':'𢀍','𢀎':'𢀎','𢀏':'𢀏','𢀐':'𢀐','𢀑':'𢀑','𢀒':'𢀒','𢀓':'𢀓','𢀔':'𢀔','𢀕':'𢀕','𢀖':'𢀖','𢀗':'𢀗','𢀘':'𢀘','𢀙':'𢀙','𢀚':'𢀚','𢀛':'𢀛','𢀜':'𢀜','𢀝':'𢀝','𢀞':'𢀞','𢀟':'𢀟','𢀠':'𢀠','𢀡':'𢀡','𢀢':'𢀢','𢀣':'𢀣','𢀤':'𢀤','𢀥':'𢀥','𢀦':'𢀦','𢀧':'𢀧','𢀨':'𢀨','𢀩':'𢀩','𡿨':'𡿨','𡿩':'𡿩','𡿪':'𡿪','𡿫':'𡿫','𡿬':'𡿬','𡿭':'𡿭','𡿮':'𡿮','𡿯':'𡿯','𡿰':'𡿰','𡿱':'𡿱','𡿲':'𡿲','𡿳':'𡿳','𡿴':'𡿴','𡿵':'𡿵','𡿶':'𡿶','𡿷':'𡿷','𡿸':'𡿸','𡿹':'𡿹','𡿺':'𡿺','𡿻':'𡿻','𡿼':'𡿼','𡿽':'𡿽','𡿾':'𡿾','𡿿':'𡿿','𢀀':'𢀀','𢀁':'𢀁','𢀂':'𢀂','𢀃':'𢀃','𢀄':'𢀄','𢀅':'𢀅','𢀆':'𢀆','𢀇':'𢀇','𢀈':'𢀈','𢀉':'𢀉','𢀊':'𢀊','𢀋':'𢀋','𢀌':'𢀌','𢀍':'𢀍','𢀎':'𢀎','𢀏':'𢀏','𢀐':'𢀐','𢀑':'𢀑','𢀒':'𢀒','𢀓':'𢀓','𢀔':'𢀔','𢀕':'𢀕','𢀖':'𢀖','𢀗':'𢀗','𢀘':'𢀘','𢀙':'𢀙','𢀚':'𢀚','𢀛':'𢀛','𢀜':'𢀜','𢀝':'𢀝','𢀞':'𢀞','𢀟':'𢀟','𢀠':'𢀠','𢀡':'𢀡','𢀢':'𢀢','𢀣':'𢀣','𢀤':'𢀤','𢀥':'𢀥','𢀦':'𢀦','𢀧':'𢀧','𢀨':'𢀨','𢀩':'𢀩','𠮟':'𠮟','𠮠':'𠮠','𠮡':'𠮡','𠮢':'𠮢','𠮣':'𠮣','𠮤':'𠮤','𠮥':'𠮥','𠮦':'𠮦','𠮧':'𠮧','𠮨':'𠮨','𠮩':'𠮩','𠮪':'𠮪','𠮫':'𠮫','𠮬':'𠮬','𠮭':'𠮭','𠮮':'𠮮','𠮯':'𠮯','𠮰':'𠮰','𠮱':'𠮱','𠮲':'𠮲','𠮳':'𠮳','𠮴':'𠮴','𠮵':'𠮵','𠮶':'𠮶','𠮷':'𠮷','𠮸':'𠮸','𠮹':'𠮹','𠮺':'𠮺','𠮻':'𠮻','𠮼':'𠮼','𠮽':'𠮽','𠮾':'𠮾','𠮿':'𠮿','𠯀':'𠯀','𠯁':'𠯁','𠯂':'𠯂','𠯃':'𠯃','𠯄':'𠯄','𠯅':'𠯅','𠯆':'𠯆','𠯇':'𠯇','𠯈':'𠯈','𠯉':'𠯉','𠯊':'𠯊','𠯋':'𠯋','𠯌':'𠯌','𠯍':'𠯍','𠯎':'𠯎','𠯏':'𠯏','𠯐':'𠯐','𠯑':'𠯑','𠯒':'𠯒','𠯓':'𠯓','𠯔':'𠯔','𠯕':'𠯕','𠯖':'𠯖','𠯗':'𠯗','𠯘':'𠯘','𠯙':'𠯙','𠯚':'𠯚','𠯛':'𠯛','𠯜':'𠯜','𠯝':'𠯝','𠯞':'𠯞','𠯟':'𠯟','𠯠':'𠯠','𠯡':'𠯡','𠯢':'𠯢','𠯣':'𠯣','𠯤':'𠯤','𠯥':'𠯥','𠯦':'𠯦','𠯧':'𠯧','𠯨':'𠯨','𠯩':'𠯩','𠯪':'𠯪','𠯫':'𠯫','𠯬':'𠯬','𠯭':'𠯭','𠯮':'𠯮','𠯯':'𠯯','𠯰':'𠯰','𠯱':'𠯱','𠯲':'𠯲','𠯳':'𠯳','𠯴':'𠯴','𠯵':'𠯵','𠯶':'𠯶','𠯷':'𠯷','𠯸':'𠯸','𠯹':'𠯹','𠯺':'𠯺','𠯻':'𠯻','𠯼':'𠯼','𠯽':'𠯽','𠯾':'𠯾','𠯿':'𠯿','𠰀':'𠰀','𠰁':'𠰁','𠰂':'𠰂','𠰃':'𠰃','𠰄':'𠰄','𠰅':'𠰅','𠰆':'𠰆','𠰇':'𠰇','𠰈':'𠰈','𠰉':'𠰉','𠰊':'𠰊','𠰋':'𠰋','𠰌':'𠰌','𠰍':'𠰍','𠰎':'𠰎','𠰏':'𠰏','𠰐':'𠰐','𠰑':'𠰑','𠰒':'𠰒','𠰓':'𠰓','𠰔':'𠰔','𠰕':'𠰕','𠰖':'𠰖','𠰗':'𠰗','𠰘':'𠰘','𠰙':'𠰙','𠰚':'𠰚','𠰛':'𠰛','𠰜':'𠰜','𠰝':'𠰝','𠰞':'𠰞','𠰟':'𠰟','𠰠':'𠰠','𠰡':'𠰡','𠰢':'𠰢','𠰣':'𠰣','𠰤':'𠰤','𠰥':'𠰥','𠰦':'𠰦','𠰧':'𠰧','𠰨':'𠰨','𠰩':'𠰩','𠰪':'𠰪','𠰫':'𠰫','𠰬':'𠰬','𠰭':'𠰭','𠰮':'𠰮','𠰯':'𠰯','𠰰':'𠰰','𠰱':'𠰱','𠰲':'𠰲','𠰳':'𠰳','𠰴':'𠰴','𠰵':'𠰵','𠰶':'𠰶','𠰷':'𠰷','𠰸':'𠰸','𠰹':'𠰹','𠰺':'𠰺','𠰻':'𠰻','𠰼':'𠰼','𠰽':'𠰽','𠰾':'𠰾','𠰿':'𠰿','𠱀':'𠱀','𠱁':'𠱁','𠱂':'𠱂','𠱃':'𠱃','𠱄':'𠱄','𠱅':'𠱅','𠱆':'𠱆','𠱇':'𠱇','𠱈':'𠱈','𠱉':'𠱉','𠱊':'𠱊','𠱋':'𠱋','𠱌':'𠱌','𠱍':'𠱍','𠱎':'𠱎','𠱏':'𠱏','原':'原','𠱑':'𠱑','𠱒':'𠱒','𠱓':'𠱓','𠱔':'𠱔','𠱕':'𠱕','𠱖':'𠱖','𠱗':'𠱗','𠱘':'𠱘','𠱙':'𠱙','𠱚':'𠱚','𠱛':'𠱛','𠱜':'𠱜','𠱝':'𠱝','𠱞':'𠱞','𠱟':'𠱟','𠱠':'𠱠','𠱡':'𠱡','𠱢':'𠱢','𠱣':'𠱣','𠱤':'𠱤','𠱥':'𠱥','𠱦':'𠱦','𠱧':'𠱧','𠱨':'𠱨','𠱩':'𠱩','𠱪':'𠱪','𠱫':'𠱫','𠱬':'𠱬','𠱭':'𠱭','𠱮':'𠱮','𠱯':'𠱯','𠱰':'𠱰','𠱱':'𠱱','𠱲':'𠱲','𠱳':'𠱳','𠱴':'𠱴','𠱵':'𠱵','𠱶':'𠱶','𠱷':'𠱷','𠱸':'𠱸','𠱹':'𠱹','𠱺':'𠱺','𠱻':'𠱻','𠱼':'𠱼','𠱽':'𠱽','𠱾':'𠱾','𠱿':'𠱿','𠲀':'𠲀','𠲁':'𠲁','𠲂':'𠲂','𠲃':'𠲃','𠲄':'𠲄','𠲅':'𠲅','𠲆':'𠲆','𠲇':'𠲇','𠲈':'𠲈','𠲉':'𠲉','𠲊':'𠲊','𠲋':'𠲋','𠲌':'𠲌','𠲍':'𠲍','𠲎':'𠲎','𠲏':'𠲏','𠲐':'𠲐','𠲑':'𠲑','𠲒':'𠲒','𠲓':'𠲓','𠲔':'𠲔','𠲕':'𠲕','𠲖':'𠲖','𠲗':'𠲗','𠲘':'𠲘','𠲙':'𠲙','𠲚':'𠲚','𠲛':'𠲛','𠲜':'𠲜','𠲝':'𠲝','𠲞':'𠲞','𠲟':'𠲟','𠲠':'𠲠','𠲡':'𠲡','𠲢':'𠲢','𠲣':'𠲣','𠲤':'𠲤','𠲥':'𠲥','𠲦':'𠲦','𠲧':'𠲧','𠲨':'𠲨','𠲩':'𠲩','𠲪':'𠲪','𠲫':'𠲫','𠲬':'𠲬','𠲭':'𠲭','𠲮':'𠲮','𠲯':'𠲯','𠲰':'𠲰','𠲱':'𠲱','𠲲':'𠲲','𠲳':'𠲳','𠲴':'𠲴','𠲵':'𠲵','𠲶':'𠲶','𠲷':'𠲷','𠲸':'𠲸','𠲹':'𠲹','𠲺':'𠲺','𠲻':'𠲻','𠲼':'𠲼','𠲽':'𠲽','𠲾':'𠲾','𠲿':'𠲿','𠳀':'𠳀','𠳁':'𠳁','𠳂':'𠳂','𠳃':'𠳃','𠳄':'𠳄','𠳅':'𠳅','𠳆':'𠳆','𠳇':'𠳇','𠳈':'𠳈','𠳉':'𠳉','𠳊':'𠳊','𠳋':'𠳋','𠳌':'𠳌','𠳍':'𠳍','𠳎':'𠳎','𠳏':'𠳏','𠳐':'𠳐','𠳑':'𠳑','𠳒':'𠳒','𠳓':'𠳓','𠳔':'𠳔','𠳕':'𠳕','𠳖':'𠳖','𠳗':'𠳗','𠳘':'𠳘','𠳙':'𠳙','𠳚':'𠳚','𠳛':'𠳛','𠳜':'𠳜','𠳝':'𠳝','𠳞':'𠳞','𠳟':'𠳟','𠳠':'𠳠','𠳡':'𠳡','𠳢':'𠳢','𠳣':'𠳣','𠳤':'𠳤','𠳥':'𠳥','𠳦':'𠳦','𠳧':'𠳧','𠳨':'𠳨','𠳩':'𠳩','𠳪':'𠳪','𠳫':'𠳫','𠳬':'𠳬','𠳭':'𠳭','𠳮':'𠳮','𠳯':'𠳯','𠳰':'𠳰','𠳱':'𠳱','𠳲':'𠳲','𠳳':'𠳳','𠳴':'𠳴','𠳵':'𠳵','𠳶':'𠳶','𠳷':'𠳷','𠳸':'𠳸','𠳹':'𠳹','𠳺':'𠳺','𠳻':'𠳻','𠳼':'𠳼','𠳽':'𠳽','𠳾':'𠳾','𠳿':'𠳿','𠴀':'𠴀','𠴁':'𠴁','𠴂':'𠴂','𠴃':'𠴃','𠴄':'𠴄','𠴅':'𠴅','𠴆':'𠴆','𠴇':'𠴇','𠴈':'𠴈','𠴉':'𠴉','𠴊':'𠴊','𠴋':'𠴋','𠴌':'𠴌','𠴍':'𠴍','𠴎':'𠴎','𠴏':'𠴏','𠴐':'𠴐','𠴑':'𠴑','𠴒':'𠴒','𠴓':'𠴓','𠴔':'𠴔','𠴕':'𠴕','𠴖':'𠴖','𠴗':'𠴗','𠴘':'𠴘','𠴙':'𠴙','𠴚':'𠴚','𠴛':'𠴛','𠴜':'𠴜','𠴝':'𠴝','𠴞':'𠴞','𠴟':'𠴟','𠴠':'𠴠','𠴡':'𠴡','𠴢':'𠴢','𠴣':'𠴣','𠴤':'𠴤','𠴥':'𠴥','𠴦':'𠴦','𠴧':'𠴧','𠴨':'𠴨','𠴩':'𠴩','𠴪':'𠴪','𠴫':'𠴫','𠴬':'𠴬','𠴭':'𠴭','𠴮':'𠴮','𠴯':'𠴯','𠴰':'𠴰','𠴱':'𠴱','𠴲':'𠴲','𠴳':'𠴳','𠴴':'𠴴','𠴵':'𠴵','𠴶':'𠴶','𠴷':'𠴷','𠴸':'𠴸','𠴹':'𠴹','𠴺':'𠴺','𠴻':'𠴻','𠴼':'𠴼','𠴽':'𠴽','𠴾':'𠴾','𠴿':'𠴿','𠵀':'𠵀','𠵁':'𠵁','𠵂':'𠵂','𠵃':'𠵃','𠵄':'𠵄','𠵅':'𠵅','𠵆':'𠵆','𠵇':'𠵇','𠵈':'𠵈','𠵉':'𠵉','𠵊':'𠵊','𠵋':'𠵋','𠵌':'𠵌','𠵍':'𠵍','𠵎':'𠵎','𠵏':'𠵏','𠵐':'𠵐','𠵑':'𠵑','𠵒':'𠵒','𠵓':'𠵓','𠵔':'𠵔','𠵕':'𠵕','𠵖':'𠵖','𠵗':'𠵗','𠵘':'𠵘','𠵙':'𠵙','𠵚':'𠵚','𠵛':'𠵛','𠵜':'𠵜','𠵝':'𠵝','𠵞':'𠵞','𠵟':'𠵟','𠵠':'𠵠','𠵡':'𠵡','𠵢':'𠵢','𠵣':'𠵣','𠵤':'𠵤','𠵥':'𠵥','𠵦':'𠵦','𠵧':'𠵧','𠵨':'𠵨','𠵩':'𠵩','𠵪':'𠵪','𠵫':'𠵫','𠵬':'𠵬','𠵭':'𠵭','𠵮':'𠵮','𠵯':'𠵯','𠵰':'𠵰','𠵱':'𠵱','𠵲':'𠵲','𠵳':'𠵳','𠵴':'𠵴','𠵵':'𠵵','𠵶':'𠵶','𠵷':'𠵷','𠵸':'𠵸','𠵹':'𠵹','𠵺':'𠵺','𠵻':'𠵻','𠵼':'𠵼','𠵽':'𠵽','𠵾':'𠵾','𠵿':'𠵿','𠶀':'𠶀','𠶁':'𠶁','𠶂':'𠶂','𠶃':'𠶃','𠶄':'𠶄','𠶅':'𠶅','𠶆':'𠶆','𠶇':'𠶇','𠶈':'𠶈','𠶉':'𠶉','𠶊':'𠶊','𠶋':'𠶋','𠶌':'𠶌','𠶍':'𠶍','𠶎':'𠶎','𠶏':'𠶏','𠶐':'𠶐','𠶑':'𠶑','𠶒':'𠶒','𠶓':'𠶓','𠶔':'𠶔','𠶕':'𠶕','𠶖':'𠶖','𠶗':'𠶗','𠶘':'𠶘','𠶙':'𠶙','𠶚':'𠶚','𠶛':'𠶛','𠶜':'𠶜','𠶝':'𠶝','𠶞':'𠶞','𠶟':'𠶟','𠶠':'𠶠','𠶡':'𠶡','𠶢':'𠶢','𠶣':'𠶣','𠶤':'𠶤','𠶥':'𠶥','𠶦':'𠶦','𠶧':'𠶧','𠶨':'𠶨','𠶩':'𠶩','𠶪':'𠶪','𠶫':'𠶫','𠶬':'𠶬','𠶭':'𠶭','𠶮':'𠶮','𠶯':'𠶯','𠶰':'𠶰','𠶱':'𠶱','𠶲':'𠶲','𠶳':'𠶳','𠶴':'𠶴','𠶵':'𠶵','𠶶':'𠶶','𠶷':'𠶷','𠶸':'𠶸','𠶹':'𠶹','𠶺':'𠶺','𠶻':'𠶻','𠶼':'𠶼','𠶽':'𠶽','𠶾':'𠶾','𠶿':'𠶿','𠷀':'𠷀','𠷁':'𠷁','𠷂':'𠷂','𠷃':'𠷃','𠷄':'𠷄','𠷅':'𠷅','𠷆':'𠷆','𠷇':'𠷇','𠷈':'𠷈','𠷉':'𠷉','𠷊':'𠷊','𠷋':'𠷋','𠷌':'𠷌','𠷍':'𠷍','𠷎':'𠷎','𠷏':'𠷏','𠷐':'𠷐','𠷑':'𠷑','𠷒':'𠷒','𠷓':'𠷓','𠷔':'𠷔','𠷕':'𠷕','𠷖':'𠷖','𠷗':'𠷗','𠷘':'𠷘','𠷙':'𠷙','𠷚':'𠷚','𠷛':'𠷛','𠷜':'𠷜','𠷝':'𠷝','𠷞':'𠷞','𠷟':'𠷟','𠷠':'𠷠','𠷡':'𠷡','𠷢':'𠷢','𠷣':'𠷣','𠷤':'𠷤','𠷥':'𠷥','𠷦':'𠷦','𠷧':'𠷧','𠷨':'𠷨','𠷩':'𠷩','𠷪':'𠷪','𠷫':'𠷫','𠷬':'𠷬','𠷭':'𠷭','𠷮':'𠷮','𠷯':'𠷯','𠷰':'𠷰','𠷱':'𠷱','𠷲':'𠷲','𠷳':'𠷳','𠷴':'𠷴','𠷵':'𠷵','𠷶':'𠷶','𠷷':'𠷷','𠷸':'𠷸','𠷹':'𠷹','𠷺':'𠷺','𠷻':'𠷻','𠷼':'𠷼','𠷽':'𠷽','𠷾':'𠷾','𠷿':'𠷿','𠸀':'𠸀','𠸁':'𠸁','𠸂':'𠸂','𠸃':'𠸃','𠸄':'𠸄','𠸅':'𠸅','𠸆':'𠸆','𠸇':'𠸇','𠸈':'𠸈','𠸉':'𠸉','𠸊':'𠸊','𠸋':'𠸋','𠸌':'𠸌','𠸍':'𠸍','𠸎':'𠸎','𠸏':'𠸏','𠸐':'𠸐','𠸑':'𠸑','𠸒':'𠸒','𠸓':'𠸓','𠸔':'𠸔','𠸕':'𠸕','𠸖':'𠸖','𠸗':'𠸗','𠸘':'𠸘','𠸙':'𠸙','𠸚':'𠸚','𠸛':'𠸛','𠸜':'𠸜','𠸝':'𠸝','𠸞':'𠸞','𠸟':'𠸟','𠸠':'𠸠','𠸡':'𠸡','𠸢':'𠸢','𠸣':'𠸣','𠸤':'𠸤','𠸥':'𠸥','𠸦':'𠸦','𠸧':'𠸧','𠸨':'𠸨','𠸩':'𠸩','𠸪':'𠸪','𠸫':'𠸫','𠸬':'𠸬','𠸭':'𠸭','𠸮':'𠸮','𠸯':'𠸯','𠸰':'𠸰','𠸱':'𠸱','𠸲':'𠸲','𠸳':'𠸳','𠸴':'𠸴','𠸵':'𠸵','𠸶':'𠸶','𠸷':'𠸷','𠸸':'𠸸','𠸹':'𠸹','𠸺':'𠸺','𠸻':'𠸻','𠸼':'𠸼','𠸽':'𠸽','𠸾':'𠸾','𠸿':'𠸿','𠹀':'𠹀','𠹁':'𠹁','𠹂':'𠹂','𠹃':'𠹃','𠹄':'𠹄','𠹅':'𠹅','𠹆':'𠹆','𠹇':'𠹇','𠹈':'𠹈','𠹉':'𠹉','𠹊':'𠹊','𠹋':'𠹋','𠹌':'𠹌','𠹍':'𠹍','𠹎':'𠹎','𠹏':'𠹏','𠹐':'𠹐','𠹑':'𠹑','𠹒':'𠹒','𠹓':'𠹓','𠹔':'𠹔','𠹕':'𠹕','𠹖':'𠹖','𠹗':'𠹗','𠹘':'𠹘','𠹙':'𠹙','𠹚':'𠹚','𠹛':'𠹛','𠹜':'𠹜','𠹝':'𠹝','𠹞':'𠹞','𠹟':'𠹟','𠹠':'𠹠','𠹡':'𠹡','𠹢':'𠹢','𠹣':'𠹣','𠹤':'𠹤','𠹥':'𠹥','𠹦':'𠹦','𠹧':'𠹧','𠹨':'𠹨','𠹩':'𠹩','𠹪':'𠹪','𠹫':'𠹫','𠹬':'𠹬','𠹭':'𠹭','𠹮':'𠹮','𠹯':'𠹯','𠹰':'𠹰','𠹱':'𠹱','𠹲':'𠹲','𠹳':'𠹳','𠹴':'𠹴','𠹵':'𠹵','𠹶':'𠹶','𠹷':'𠹷','𠹸':'𠹸','𠹹':'𠹹','𠹺':'𠹺','𠹻':'𠹻','𠹼':'𠹼','𠹽':'𠹽','𠹾':'𠹾','𠹿':'𠹿','𠺀':'𠺀','𠺁':'𠺁','𠺂':'𠺂','𠺃':'𠺃','𠺄':'𠺄','𠺅':'𠺅','𠺆':'𠺆','𠺇':'𠺇','𠺈':'𠺈','𠺉':'𠺉','𠺊':'𠺊','𠺋':'𠺋','𠺌':'𠺌','𠺍':'𠺍','𠺎':'𠺎','𠺏':'𠺏','𠺐':'𠺐','𠺑':'𠺑','𠺒':'𠺒','𠺓':'𠺓','𠺔':'𠺔','𠺕':'𠺕','𠺖':'𠺖','𠺗':'𠺗','𠺘':'𠺘','𠺙':'𠺙','𠺚':'𠺚','𠺛':'𠺛','𠺜':'𠺜','𠺝':'𠺝','𠺞':'𠺞','𠺟':'𠺟','𠺠':'𠺠','𠺡':'𠺡','𠺢':'𠺢','𠺣':'𠺣','𠺤':'𠺤','𠺥':'𠺥','𠺦':'𠺦','𠺧':'𠺧','𠺨':'𠺨','𠺩':'𠺩','𠺪':'𠺪','𠺫':'𠺫','𠺬':'𠺬','𠺭':'𠺭','𠺮':'𠺮','𠺯':'𠺯','𠺰':'𠺰','𠺱':'𠺱','𠺲':'𠺲','𠺳':'𠺳','𠺴':'𠺴','𠺵':'𠺵','𠺶':'𠺶','𠺷':'𠺷','𠺸':'𠺸','𠺹':'𠺹','𠺺':'𠺺','𠺻':'𠺻','𠺼':'𠺼','𠺽':'𠺽','𠺾':'𠺾','𠺿':'𠺿','𠻀':'𠻀','𠻁':'𠻁','𠻂':'𠻂','𠻃':'𠻃','𠻄':'𠻄','𠻅':'𠻅','𠻆':'𠻆','𠻇':'𠻇','𠻈':'𠻈','𠻉':'𠻉','𠻊':'𠻊','𠻋':'𠻋','𠻌':'𠻌','𠻍':'𠻍','𠻎':'𠻎','𠻏':'𠻏','𠻐':'𠻐','𠻑':'𠻑','𠻒':'𠻒','𠻓':'𠻓','𠻔':'𠻔','𠻕':'𠻕','𠻖':'𠻖','𠻗':'𠻗','𠻘':'𠻘','𠻙':'𠻙','𠻚':'𠻚','𠻛':'𠻛','𠻜':'𠻜','𠻝':'𠻝','𠻞':'𠻞','𠻟':'𠻟','𠻠':'𠻠','𠻡':'𠻡','𠻢':'𠻢','𠻣':'𠻣','𠻤':'𠻤','𠻥':'𠻥','𠻦':'𠻦','𠻧':'𠻧','𠻨':'𠻨','𠻩':'𠻩','𠻪':'𠻪','𠻫':'𠻫','𠻬':'𠻬','𠻭':'𠻭','𠻮':'𠻮','𠻯':'𠻯','𠻰':'𠻰','𠻱':'𠻱','𠻲':'𠻲','𠻳':'𠻳','𠻴':'𠻴','𠻵':'𠻵','𠻶':'𠻶','𠻷':'𠻷','𠻸':'𠻸','𠻹':'𠻹','𠻺':'𠻺','𠻻':'𠻻','𠻼':'𠻼','𠻽':'𠻽','𠻾':'𠻾','𠻿':'𠻿','𠼀':'𠼀','𠼁':'𠼁','𠼂':'𠼂','𠼃':'𠼃','𠼄':'𠼄','𠼅':'𠼅','𠼆':'𠼆','𠼇':'𠼇','𠼈':'𠼈','𠼉':'𠼉','𠼊':'𠼊','𠼋':'𠼋','𠼌':'𠼌','𠼍':'𠼍','𠼎':'𠼎','𠼏':'𠼏','𠼐':'𠼐','𠼑':'𠼑','𠼒':'𠼒','𠼓':'𠼓','𠼔':'𠼔','𠼕':'𠼕','𠼖':'𠼖','𠼗':'𠼗','𠼘':'𠼘','𠼙':'𠼙','𠼚':'𠼚','𠼛':'𠼛','𠼜':'𠼜','𠼝':'𠼝','𠼞':'𠼞','𠼟':'𠼟','𠼠':'𠼠','𠼡':'𠼡','𠼢':'𠼢','𠼣':'𠼣','𠼤':'𠼤','𠼥':'𠼥','𠼦':'𠼦','𠼧':'𠼧','𠼨':'𠼨','𠼩':'𠼩','𠼪':'𠼪','𠼫':'𠼫','𠼬':'𠼬','𠼭':'𠼭','𠼮':'𠼮','𠼯':'𠼯','𠼰':'𠼰','𠼱':'𠼱','𠼲':'𠼲','𠼳':'𠼳','𠼴':'𠼴','𠼵':'𠼵','𠼶':'𠼶','𠼷':'𠼷','𠼸':'𠼸','𠼹':'𠼹','𠼺':'𠼺','𠼻':'𠼻','𠼼':'𠼼','𠼽':'𠼽','𠼾':'𠼾','𠼿':'𠼿','𠽀':'𠽀','𠽁':'𠽁','𠽂':'𠽂','𠽃':'𠽃','𠽄':'𠽄','𠽅':'𠽅','𠽆':'𠽆','𠽇':'𠽇','𠽈':'𠽈','𠽉':'𠽉','𠽊':'𠽊','𠽋':'𠽋','𠽌':'𠽌','𠽍':'𠽍','𠽎':'𠽎','𠽏':'𠽏','𠽐':'𠽐','𠽑':'𠽑','𠽒':'𠽒','𠽓':'𠽓','𠽔':'𠽔','𠽕':'𠽕','𠽖':'𠽖','𠽗':'𠽗','𠽘':'𠽘','𠽙':'𠽙','𠽚':'𠽚','𠽛':'𠽛','𠽜':'𠽜','𠽝':'𠽝','𠽞':'𠽞','𠽟':'𠽟','𠽠':'𠽠','𠽡':'𠽡','𠽢':'𠽢','𠽣':'𠽣','𠽤':'𠽤','𠽥':'𠽥','𠽦':'𠽦','𠽧':'𠽧','𠽨':'𠽨','𠽩':'𠽩','𠽪':'𠽪','𠽫':'𠽫','𠽬':'𠽬','𠽭':'𠽭','𠽮':'𠽮','𠽯':'𠽯','𠽰':'𠽰','𠽱':'𠽱','𠽲':'𠽲','𠽳':'𠽳','𠽴':'𠽴','𠽵':'𠽵','𠽶':'𠽶','𠽷':'𠽷','𠽸':'𠽸','𠽹':'𠽹','𠽺':'𠽺','𠽻':'𠽻','𠽼':'𠽼','𠽽':'𠽽','𠽾':'𠽾','𠽿':'𠽿','𠾀':'𠾀','𠾁':'𠾁','𠾂':'𠾂','𠾃':'𠾃','𠾄':'𠾄','𠾅':'𠾅','𠾆':'𠾆','𠾇':'𠾇','𠾈':'𠾈','𠾉':'𠾉','𠾊':'𠾊','𠾋':'𠾋','𠾌':'𠾌','𠾍':'𠾍','𠾎':'𠾎','𠾏':'𠾏','𠾐':'𠾐','𠾑':'𠾑','𠾒':'𠾒','𠾓':'𠾓','𠾔':'𠾔','𠾕':'𠾕','𠾖':'𠾖','𠾗':'𠾗','𠾘':'𠾘','𠾙':'𠾙','𠾚':'𠾚','𠾛':'𠾛','𠾜':'𠾜','𠾝':'𠾝','𠾞':'𠾞','𠾟':'𠾟','𠾠':'𠾠','𠾡':'𠾡','𠾢':'𠾢','𠾣':'𠾣','𠾤':'𠾤','𠾥':'𠾥','𠾦':'𠾦','𠾧':'𠾧','𠾨':'𠾨','𠾩':'𠾩','𠾪':'𠾪','𠾫':'𠾫','𠾬':'𠾬','𠾭':'𠾭','𠾮':'𠾮','𠾯':'𠾯','𠾰':'𠾰','𠾱':'𠾱','𠾲':'𠾲','𠾳':'𠾳','𠾴':'𠾴','𠾵':'𠾵','𠾶':'𠾶','𠾷':'𠾷','𠾸':'𠾸','𠾹':'𠾹','𠾺':'𠾺','𠾻':'𠾻','𠾼':'𠾼','𠾽':'𠾽','𠾾':'𠾾','𠾿':'𠾿','𠿀':'𠿀','𠿁':'𠿁','𠿂':'𠿂','𠿃':'𠿃','𠿄':'𠿄','𠿅':'𠿅','𠿆':'𠿆','𠿇':'𠿇','𠿈':'𠿈','𠿉':'𠿉','𠿊':'𠿊','𠿋':'𠿋','𠿌':'𠿌','𠿍':'𠿍','𠿎':'𠿎','𠿏':'𠿏','𠿐':'𠿐','𠿑':'𠿑','𠿒':'𠿒','𠿓':'𠿓','𠿔':'𠿔','𠿕':'𠿕','𠿖':'𠿖','𠿗':'𠿗','𠿘':'𠿘','𠿙':'𠿙','𠿚':'𠿚','𠿛':'𠿛','𠿜':'𠿜','𠿝':'𠿝','𠿞':'𠿞','𠿟':'𠿟','𠿠':'𠿠','𠿡':'𠿡','𠿢':'𠿢','𠿣':'𠿣','𠿤':'𠿤','𠿥':'𠿥','𠿦':'𠿦','𠿧':'𠿧','𠿨':'𠿨','𠿩':'𠿩','𠿪':'𠿪','𠿫':'𠿫','𠿬':'𠿬','𠿭':'𠿭','𠿮':'𠿮','𠿯':'𠿯','𠿰':'𠿰','𠿱':'𠿱','𠿲':'𠿲','𠿳':'𠿳','𠿴':'𠿴','𠿵':'𠿵','𠿶':'𠿶','𠿷':'𠿷','𠿸':'𠿸','𠿹':'𠿹','𠿺':'𠿺','𠿻':'𠿻','𠿼':'𠿼','𠿽':'𠿽','𠿾':'𠿾','𠿿':'𠿿','𡀀':'𡀀','𡀁':'𡀁','𡀂':'𡀂','𡀃':'𡀃','𡀄':'𡀄','𡀅':'𡀅','𡀆':'𡀆','𡀇':'𡀇','𡀈':'𡀈','𡀉':'𡀉','𡀊':'𡀊','𡀋':'𡀋','𡀌':'𡀌','𡀍':'𡀍','𡀎':'𡀎','𡀏':'𡀏','𡀐':'𡀐','𡀑':'𡀑','𡀒':'𡀒','𡀓':'𡀓','𡀔':'𡀔','𡀕':'𡀕','𡀖':'𡀖','𡀗':'𡀗','𡀘':'𡀘','𡀙':'𡀙','𡀚':'𡀚','𡀛':'𡀛','𡀜':'𡀜','𡀝':'𡀝','𡀞':'𡀞','𡀟':'𡀟','𡀠':'𡀠','𡀡':'𡀡','𡀢':'𡀢','𡀣':'𡀣','𡀤':'𡀤','𡀥':'𡀥','𡀦':'𡀦','𡀧':'𡀧','𡀨':'𡀨','𡀩':'𡀩','𡀪':'𡀪','𡀫':'𡀫','𡀬':'𡀬','𡀭':'𡀭','𡀮':'𡀮','𡀯':'𡀯','𡀰':'𡀰','𡀱':'𡀱','𡀲':'𡀲','𡀳':'𡀳','𡀴':'𡀴','𡀵':'𡀵','𡀶':'𡀶','𡀷':'𡀷','𡀸':'𡀸','𡀹':'𡀹','𡀺':'𡀺','𡀻':'𡀻','𡀼':'𡀼','𡀽':'𡀽','𡀾':'𡀾','𡀿':'𡀿','𡁀':'𡁀','𡁁':'𡁁','𡁂':'𡁂','𡁃':'𡁃','𡁄':'𡁄','𡁅':'𡁅','𡁆':'𡁆','𡁇':'𡁇','𡁈':'𡁈','𡁉':'𡁉','𡁊':'𡁊','𡁋':'𡁋','𡁌':'𡁌','𡁍':'𡁍','𡁎':'𡁎','𡁏':'𡁏','𡁐':'𡁐','𡁑':'𡁑','𡁒':'𡁒','𡁓':'𡁓','𡁔':'𡁔','𡁕':'𡁕','𡁖':'𡁖','𡁗':'𡁗','𡁘':'𡁘','𡁙':'𡁙','𡁚':'𡁚','𡁛':'𡁛','𡁜':'𡁜','𡁝':'𡁝','𡁞':'𡁞','𡁟':'𡁟','𡁠':'𡁠','𡁡':'𡁡','𡁢':'𡁢','𡁣':'𡁣','𡁤':'𡁤','𡁥':'𡁥','𡁦':'𡁦','𡁧':'𡁧','𡁨':'𡁨','𡁩':'𡁩','𡁪':'𡁪','𡁫':'𡁫','𡁬':'𡁬','𡁭':'𡁭','𡁮':'𡁮','𡁯':'𡁯','𡁰':'𡁰','𡁱':'𡁱','𡁲':'𡁲','𡁳':'𡁳','𡁴':'𡁴','𡁵':'𡁵','𡁶':'𡁶','𡁷':'𡁷','𡁸':'𡁸','𡁹':'𡁹','𡁺':'𡁺','𡁻':'𡁻','𡁼':'𡁼','𡁽':'𡁽','𡁾':'𡁾','𡁿':'𡁿','𡂀':'𡂀','𡂁':'𡂁','𡂂':'𡂂','𡂃':'𡂃','𡂄':'𡂄','𡂅':'𡂅','𡂆':'𡂆','𡂇':'𡂇','𡂈':'𡂈','𡂉':'𡂉','𡂊':'𡂊','𡂋':'𡂋','𡂌':'𡂌','𡂍':'𡂍','𡂎':'𡂎','𡂏':'𡂏','𡂐':'𡂐','𡂑':'𡂑','𡂒':'𡂒','𡂓':'𡂓','𡂔':'𡂔','𡂕':'𡂕','𡂖':'𡂖','𡂗':'𡂗','𡂘':'𡂘','𡂙':'𡂙','𡂚':'𡂚','𡂛':'𡂛','𡂜':'𡂜','𡂝':'𡂝','𡂞':'𡂞','𡂟':'𡂟','𡂠':'𡂠','𡂡':'𡂡','𡂢':'𡂢','𡂣':'𡂣','𡂤':'𡂤','𡂥':'𡂥','𡂦':'𡂦','𡂧':'𡂧','𡂨':'𡂨','𡂩':'𡂩','𡂪':'𡂪','𡂫':'𡂫','𡂬':'𡂬','𡂭':'𡂭','𡂮':'𡂮','𡂯':'𡂯','𡂰':'𡂰','𡂱':'𡂱','𡂲':'𡂲','𡂳':'𡂳','𡂴':'𡂴','𡂵':'𡂵','𡂶':'𡂶','𡂷':'𡂷','𡂸':'𡂸','𡂹':'𡂹','𡂺':'𡂺','𡂻':'𡂻','𡂼':'𡂼','𡂽':'𡂽','𡂾':'𡂾','𡂿':'𡂿','𡃀':'𡃀','𡃁':'𡃁','𡃂':'𡃂','𡃃':'𡃃','𡃄':'𡃄','𡃅':'𡃅','𡃆':'𡃆','𡃇':'𡃇','𡃈':'𡃈','𡃉':'𡃉','𡃊':'𡃊','𡃋':'𡃋','𡃌':'𡃌','𡃍':'𡃍','𡃎':'𡃎','𡃏':'𡃏','𡃐':'𡃐','𡃑':'𡃑','𡃒':'𡃒','𡃓':'𡃓','𡃔':'𡃔','𡃕':'𡃕','𡃖':'𡃖','𡃗':'𡃗','𡃘':'𡃘','𡃙':'𡃙','𡃚':'𡃚','𡃛':'𡃛','𡃜':'𡃜','𡃝':'𡃝','𡃞':'𡃞','𡃟':'𡃟','𡃠':'𡃠','𡃡':'𡃡','𡃢':'𡃢','𡃣':'𡃣','𡃤':'𡃤','𡃥':'𡃥','𡃦':'𡃦','𡃧':'𡃧','𡃨':'𡃨','𡃩':'𡃩','𡃪':'𡃪','𡃫':'𡃫','𡃬':'𡃬','𡃭':'𡃭','𡃮':'𡃮','𡃯':'𡃯','𡃰':'𡃰','𡃱':'𡃱','𡃲':'𡃲','𡃳':'𡃳','𡃴':'𡃴','𡃵':'𡃵','𡃶':'𡃶','𡃷':'𡃷','𡃸':'𡃸','𡃹':'𡃹','𡃺':'𡃺','𡃻':'𡃻','𡃼':'𡃼','𡃽':'𡃽','𡃾':'𡃾','𡃿':'𡃿','𡄀':'𡄀','𡄁':'𡄁','𡄂':'𡄂','𡄃':'𡄃','𡄄':'𡄄','𡄅':'𡄅','𡄆':'𡄆','𡄇':'𡄇','𡄈':'𡄈','𡄉':'𡄉','𡄊':'𡄊','𡄋':'𡄋','𡄌':'𡄌','𡄍':'𡄍','𡄎':'𡄎','𡄏':'𡄏','𡄐':'𡄐','𡄑':'𡄑','𡄒':'𡄒','𡄓':'𡄓','𡄔':'𡄔','𡄕':'𡄕','𡄖':'𡄖','𡄗':'𡄗','𡄘':'𡄘','𡄙':'𡄙','𡄚':'𡄚','𡄛':'𡄛','𡄜':'𡄜','𡄝':'𡄝','𡄞':'𡄞','𡄟':'𡄟','𡄠':'𡄠','𡄡':'𡄡','𡄢':'𡄢','𡄣':'𡄣','𡄤':'𡄤','𡄥':'𡄥','𡄦':'𡄦','𡄧':'𡄧','𡄨':'𡄨','𡄩':'𡄩','𡄪':'𡄪','𡄫':'𡄫','𡄬':'𡄬','𡄭':'𡄭','𡄮':'𡄮','𡄯':'𡄯','𡄰':'𡄰','𡄱':'𡄱','𡄲':'𡄲','𡄳':'𡄳','𡄴':'𡄴','𡄵':'𡄵','𡄶':'𡄶','𡄷':'𡄷','𡄸':'𡄸','𡄹':'𡄹','𡄺':'𡄺','𡄻':'𡄻','𡄼':'𡄼','𡄽':'𡄽','𡄾':'𡄾','𡄿':'𡄿','𡅀':'𡅀','𡅁':'𡅁','𡅂':'𡅂','𡅃':'𡅃','𡅄':'𡅄','𡅅':'𡅅','𡅆':'𡅆','𡅇':'𡅇','𡅈':'𡅈','𡅉':'𡅉','𡅊':'𡅊','𡅋':'𡅋','𡅌':'𡅌','𡅍':'𡅍','𡅎':'𡅎','𡅏':'𡅏','𡅐':'𡅐','𡅑':'𡅑','𡅒':'𡅒','𡅓':'𡅓','𡅔':'𡅔','𡅕':'𡅕','𡅖':'𡅖','𡅗':'𡅗','𡅘':'𡅘','𡅙':'𡅙','𡅚':'𡅚','𡅛':'𡅛','𡅜':'𡅜','𡅝':'𡅝','𡅞':'𡅞','𡅟':'𡅟','𡅠':'𡅠','𡅡':'𡅡','𡅢':'𡅢','𡅣':'𡅣','𡅤':'𡅤','𡅥':'𡅥','𡅦':'𡅦','𡅧':'𡅧','𡅨':'𡅨','𡅩':'𡅩','𡅪':'𡅪','𡅫':'𡅫','𡅬':'𡅬','𡅭':'𡅭','𡅮':'𡅮','𡅯':'𡅯','𡅰':'𡅰','𡅱':'𡅱','𡅲':'𡅲','𡅳':'𡅳','𡅴':'𡅴','𡅵':'𡅵','𡅶':'𡅶','𡅷':'𡅷','𡅸':'𡅸','𡅹':'𡅹','𡅺':'𡅺','𡅻':'𡅻','𡅼':'𡅼','𡅽':'𡅽','𡅾':'𡅾','𡅿':'𡅿','𡆀':'𡆀','𡆁':'𡆁','𡆂':'𡆂','𡆃':'𡆃','𡆄':'𡆄','𡆅':'𡆅','𡆆':'𡆆','𡆇':'𡆇','𡆈':'𡆈','𡆉':'𡆉','𡆊':'𡆊','𡆋':'𡆋','𡆌':'𡆌','𡆍':'𡆍','𡆎':'𡆎','𡆏':'𡆏','𡆐':'𡆐','𡆑':'𡆑','𡆒':'𡆒','𡆓':'𡆓','𡆔':'𡆔','𡆕':'𡆕','𡆖':'𡆖','𡆗':'𡆗','𡆘':'𡆘','𡆙':'𡆙','𡆚':'𡆚','𡆛':'𡆛','𡆜':'𡆜','𡆝':'𡆝','𡆞':'𡆞','𡆟':'𡆟','𡆠':'𡆠','𡆡':'𡆡','𡆢':'𡆢','𡆣':'𡆣','𡆤':'𡆤','𡆥':'𡆥','𡆦':'𡆦','𡆧':'𡆧','𡆨':'𡆨','𡆩':'𡆩','𡆪':'𡆪','𡆫':'𡆫','𡆬':'𡆬','𡆭':'𡆭','𡆮':'𡆮','𡆯':'𡆯','𡆰':'𡆰','𡆱':'𡆱','𡆲':'𡆲','𡆳':'𡆳','𡆴':'𡆴','𡆵':'𡆵','𡆶':'𡆶','𡆷':'𡆷','𡆸':'𡆸','𡆹':'𡆹','𡆺':'𡆺','𡆻':'𡆻','𡆼':'𡆼','𡆽':'𡆽','𡆾':'𡆾','𡆿':'𡆿','𡇀':'𡇀','𡇁':'𡇁','𡇂':'𡇂','𡇃':'𡇃','𡇄':'𡇄','𡇅':'𡇅','𡇆':'𡇆','𡇇':'𡇇','𡇈':'𡇈','𡇉':'𡇉','𡇊':'𡇊','𡇋':'𡇋','𡇌':'𡇌','𡇍':'𡇍','𡇎':'𡇎','𡇏':'𡇏','𡇐':'𡇐','𡇑':'𡇑','𡇒':'𡇒','𡇓':'𡇓','𡇔':'𡇔','𡇕':'𡇕','𡇖':'𡇖','𡇗':'𡇗','𡇘':'𡇘','𡇙':'𡇙','𡇚':'𡇚','𡇛':'𡇛','𡇜':'𡇜','𡇝':'𡇝','𡇞':'𡇞','𡇟':'𡇟','𡇠':'𡇠','𡇡':'𡇡','𡇢':'𡇢','𡇣':'𡇣','𡇤':'𡇤','𡇥':'𡇥','𡇦':'𡇦','𡇧':'𡇧','𡇨':'𡇨','𡇩':'𡇩','𡇪':'𡇪','𡇫':'𡇫','𡇬':'𡇬','𡇭':'𡇭','𡇮':'𡇮','𡇯':'𡇯','𡇰':'𡇰','𡇱':'𡇱','𡇲':'𡇲','𡇳':'𡇳','𡇴':'𡇴','𡇵':'𡇵','𡇶':'𡇶','𡇷':'𡇷','𡇸':'𡇸','𡇹':'𡇹','𡇺':'𡇺','𡇻':'𡇻','𡇼':'𡇼','𡇽':'𡇽','𡇾':'𡇾','𡇿':'𡇿','𡈀':'𡈀','𡈁':'𡈁','𡈂':'𡈂','𡈃':'𡈃','𡈄':'𡈄','𡈅':'𡈅','𡈆':'𡈆','𡈇':'𡈇','𡈈':'𡈈','𡈉':'𡈉','𡈊':'𡈊','𡈋':'𡈋','𡈌':'𡈌','𡈍':'𡈍','𡈎':'𡈎','𡈏':'𡈏','𡈐':'𡈐','𡈑':'𡈑','𡈒':'𡈒','𡈓':'𡈓','𡈔':'𡈔','𡈕':'𡈕','𡈖':'𡈖','𡈗':'𡈗','𡈘':'𡈘','𡈙':'𡈙','𡈚':'𡈚','𡈛':'𡈛','𡈜':'𡈜','𡈝':'𡈝','𡈞':'𡈞','𡈟':'𡈟','𡈠':'𡈠','𡈡':'𡈡','𡈢':'𡈢','𡈣':'𡈣','𡈤':'𡈤','𡈥':'𡈥','𡈦':'𡈦','𡈧':'𡈧','𡈨':'𡈨','𡈩':'𡈩','𡈪':'𡈪','𡈫':'𡈫','𡈬':'𡈬','𡈭':'𡈭','𡈮':'𡈮','𡈯':'𡈯','𡈰':'𡈰','𡈱':'𡈱','𡈲':'𡈲','𡈳':'𡈳','𡈴':'𡈴','𡈵':'𡈵','𡈶':'𡈶','𡈷':'𡈷','𡈸':'𡈸','𡈹':'𡈹','𡈺':'𡈺','𡈻':'𡈻','𡈼':'𡈼','𡈽':'𡈽','𡈾':'𡈾','𡈿':'𡈿','𡉀':'𡉀','𡉁':'𡉁','𡉂':'𡉂','𡉃':'𡉃','𡉄':'𡉄','𡉅':'𡉅','𡉆':'𡉆','𡉇':'𡉇','𡉈':'𡉈','𡉉':'𡉉','𡉊':'𡉊','𡉋':'𡉋','𡉌':'𡉌','𡉍':'𡉍','𡉎':'𡉎','原':'原','𡉐':'𡉐','𡉑':'𡉑','𡉒':'𡉒','𡉓':'𡉓','𡉔':'𡉔','𡉕':'𡉕','𡉖':'𡉖','𡉗':'𡉗','𡉘':'𡉘','𡉙':'𡉙','𡉚':'𡉚','𡉛':'𡉛','𡉜':'𡉜','𡉝':'𡉝','𡉞':'𡉞','𡉟':'𡉟','𡉠':'𡉠','𡉡':'𡉡','𡉢':'𡉢','𡉣':'𡉣','𡉤':'𡉤','𡉥':'𡉥','𡉦':'𡉦','𡉧':'𡉧','𡉨':'𡉨','𡉩':'𡉩','𡉪':'𡉪','𡉫':'𡉫','𡉬':'𡉬','𡉭':'𡉭','𡉮':'𡉮','𡉯':'𡉯','𡉰':'𡉰','𡉱':'𡉱','𡉲':'𡉲','𡉳':'𡉳','𡉴':'𡉴','𡉵':'𡉵','𡉶':'𡉶','𡉷':'𡉷','𡉸':'𡉸','𡉹':'𡉹','𡉺':'𡉺','𡉻':'𡉻','𡉼':'𡉼','𡉽':'𡉽','𡉾':'𡉾','𡉿':'𡉿','𡊀':'𡊀','𡊁':'𡊁','𡊂':'𡊂','𡊃':'𡊃','𡊄':'𡊄','𡊅':'𡊅','𡊆':'𡊆','𡊇':'𡊇','𡊈':'𡊈','𡊉':'𡊉','𡊊':'𡊊','𡊋':'𡊋','𡊌':'𡊌','𡊍':'𡊍','𡊎':'𡊎','𡊏':'𡊏','𡊐':'𡊐','𡊑':'𡊑','𡊒':'𡊒','𡊓':'𡊓','𡊔':'𡊔','𡊕':'𡊕','𡊖':'𡊖','𡊗':'𡊗','𡊘':'𡊘','𡊙':'𡊙','𡊚':'𡊚','𡊛':'𡊛','𡊜':'𡊜','𡊝':'𡊝','𡊞':'𡊞','𡊟':'𡊟','𡊠':'𡊠','𡊡':'𡊡','𡊢':'𡊢','𡊣':'𡊣','𡊤':'𡊤','𡊥':'𡊥','𡊦':'𡊦','𡊧':'𡊧','𡊨':'𡊨','𡊩':'𡊩','𡊪':'𡊪','𡊫':'𡊫','𡊬':'𡊬','𡊭':'𡊭','𡊮':'𡊮','𡊯':'𡊯','𡊰':'𡊰','𡊱':'𡊱','𡊲':'𡊲','𡊳':'𡊳','𡊴':'𡊴','𡊵':'𡊵','𡊶':'𡊶','𡊷':'𡊷','𡊸':'𡊸','𡊹':'𡊹','𡊺':'𡊺','𡊻':'𡊻','𡊼':'𡊼','𡊽':'𡊽','𡊾':'𡊾','𡊿':'𡊿','𡋀':'𡋀','𡋁':'𡋁','𡋂':'𡋂','𡋃':'𡋃','𡋄':'𡋄','𡋅':'𡋅','𡋆':'𡋆','𡋇':'𡋇','𡋈':'𡋈','𡋉':'𡋉','𡋊':'𡋊','𡋋':'𡋋','𡋌':'𡋌','𡋍':'𡋍','𡋎':'𡋎','𡋏':'𡋏','𡋐':'𡋐','𡋑':'𡋑','𡋒':'𡋒','𡋓':'𡋓','𡋔':'𡋔','𡋕':'𡋕','𡋖':'𡋖','𡋗':'𡋗','𡋘':'𡋘','𡋙':'𡋙','𡋚':'𡋚','𡋛':'𡋛','𡋜':'𡋜','𡋝':'𡋝','𡋞':'𡋞','𡋟':'𡋟','𡋠':'𡋠','𡋡':'𡋡','𡋢':'𡋢','𡋣':'𡋣','𡋤':'𡋤','𡋥':'𡋥','𡋦':'𡋦','𡋧':'𡋧','𡋨':'𡋨','𡋩':'𡋩','𡋪':'𡋪','𡋫':'𡋫','𡋬':'𡋬','𡋭':'𡋭','𡋮':'𡋮','𡋯':'𡋯','𡋰':'𡋰','𡋱':'𡋱','𡋲':'𡋲','𡋳':'𡋳','𡋴':'𡋴','𡋵':'𡋵','𡋶':'𡋶','𡋷':'𡋷','𡋸':'𡋸','𡋹':'𡋹','𡋺':'𡋺','𡋻':'𡋻','𡋼':'𡋼','𡋽':'𡋽','𡋾':'𡋾','𡋿':'𡋿','𡌀':'𡌀','𡌁':'𡌁','𡌂':'𡌂','𡌃':'𡌃','𡌄':'𡌄','𡌅':'𡌅','𡌆':'𡌆','𡌇':'𡌇','𡌈':'𡌈','𡌉':'𡌉','𡌊':'𡌊','𡌋':'𡌋','𡌌':'𡌌','𡌍':'𡌍','𡌎':'𡌎','𡌏':'𡌏','𡌐':'𡌐','𡌑':'𡌑','𡌒':'𡌒','𡌓':'𡌓','𡌔':'𡌔','𡌕':'𡌕','𡌖':'𡌖','𡌗':'𡌗','𡌘':'𡌘','𡌙':'𡌙','𡌚':'𡌚','𡌛':'𡌛','𡌜':'𡌜','𡌝':'𡌝','𡌞':'𡌞','𡌟':'𡌟','𡌠':'𡌠','𡌡':'𡌡','𡌢':'𡌢','𡌣':'𡌣','𡌤':'𡌤','𡌥':'𡌥','𡌦':'𡌦','𡌧':'𡌧','𡌨':'𡌨','𡌩':'𡌩','𡌪':'𡌪','𡌫':'𡌫','𡌬':'𡌬','𡌭':'𡌭','𡌮':'𡌮','𡌯':'𡌯','𡌰':'𡌰','𡌱':'𡌱','𡌲':'𡌲','𡌳':'𡌳','𡌴':'𡌴','𡌵':'𡌵','𡌶':'𡌶','𡌷':'𡌷','𡌸':'𡌸','𡌹':'𡌹','𡌺':'𡌺','𡌻':'𡌻','𡌼':'𡌼','𡌽':'𡌽','𡌾':'𡌾','𡌿':'𡌿','𡍀':'𡍀','𡍁':'𡍁','𡍂':'𡍂','𡍃':'𡍃','𡍄':'𡍄','𡍅':'𡍅','𡍆':'𡍆','𡍇':'𡍇','𡍈':'𡍈','𡍉':'𡍉','𡍊':'𡍊','𡍋':'𡍋','𡍌':'𡍌','𡍍':'𡍍','𡍎':'𡍎','𡍏':'𡍏','𡍐':'𡍐','𡍑':'𡍑','𡍒':'𡍒','𡍓':'𡍓','𡍔':'𡍔','𡍕':'𡍕','𡍖':'𡍖','𡍗':'𡍗','𡍘':'𡍘','𡍙':'𡍙','𡍚':'𡍚','𡍛':'𡍛','𡍜':'𡍜','𡍝':'𡍝','𡍞':'𡍞','𡍟':'𡍟','𡍠':'𡍠','𡍡':'𡍡','𡍢':'𡍢','𡍣':'𡍣','𡍤':'𡍤','𡍥':'𡍥','𡍦':'𡍦','𡍧':'𡍧','𡍨':'𡍨','𡍩':'𡍩','𡍪':'𡍪','𡍫':'𡍫','𡍬':'𡍬','𡍭':'𡍭','𡍮':'𡍮','𡍯':'𡍯','𡍰':'𡍰','𡍱':'𡍱','𡍲':'𡍲','𡍳':'𡍳','𡍴':'𡍴','𡍵':'𡍵','𡍶':'𡍶','𡍷':'𡍷','𡍸':'𡍸','𡍹':'𡍹','𡍺':'𡍺','𡍻':'𡍻','𡍼':'𡍼','𡍽':'𡍽','𡍾':'𡍾','𡍿':'𡍿','𡎀':'𡎀','𡎁':'𡎁','𡎂':'𡎂','𡎃':'𡎃','𡎄':'𡎄','𡎅':'𡎅','𡎆':'𡎆','𡎇':'𡎇','𡎈':'𡎈','𡎉':'𡎉','𡎊':'𡎊','𡎋':'𡎋','𡎌':'𡎌','𡎍':'𡎍','𡎎':'𡎎','𡎏':'𡎏','𡎐':'𡎐','𡎑':'𡎑','𡎒':'𡎒','𡎓':'𡎓','𡎔':'𡎔','𡎕':'𡎕','𡎖':'𡎖','𡎗':'𡎗','𡎘':'𡎘','𡎙':'𡎙','𡎚':'𡎚','𡎛':'𡎛','𡎜':'𡎜','𡎝':'𡎝','𡎞':'𡎞','𡎟':'𡎟','𡎠':'𡎠','𡎡':'𡎡','𡎢':'𡎢','𡎣':'𡎣','𡎤':'𡎤','𡎥':'𡎥','𡎦':'𡎦','𡎧':'𡎧','𡎨':'𡎨','𡎩':'𡎩','𡎪':'𡎪','𡎫':'𡎫','𡎬':'𡎬','𡎭':'𡎭','𡎮':'𡎮','𡎯':'𡎯','𡎰':'𡎰','𡎱':'𡎱','𡎲':'𡎲','𡎳':'𡎳','𡎴':'𡎴','𡎵':'𡎵','𡎶':'𡎶','𡎷':'𡎷','𡎸':'𡎸','𡎹':'𡎹','𡎺':'𡎺','𡎻':'𡎻','𡎼':'𡎼','𡎽':'𡎽','𡎾':'𡎾','𡎿':'𡎿','𡏀':'𡏀','𡏁':'𡏁','𡏂':'𡏂','𡏃':'𡏃','𡏄':'𡏄','𡏅':'𡏅','𡏆':'𡏆','𡏇':'𡏇','𡏈':'𡏈','𡏉':'𡏉','𡏊':'𡏊','𡏋':'𡏋','𡏌':'𡏌','𡏍':'𡏍','𡏎':'𡏎','𡏏':'𡏏','𡏐':'𡏐','𡏑':'𡏑','𡏒':'𡏒','𡏓':'𡏓','𡏔':'𡏔','𡏕':'𡏕','𡏖':'𡏖','𡏗':'𡏗','𡏘':'𡏘','𡏙':'𡏙','𡏚':'𡏚','𡏛':'𡏛','𡏜':'𡏜','𡏝':'𡏝','𡏞':'𡏞','𡏟':'𡏟','𡏠':'𡏠','𡏡':'𡏡','𡏢':'𡏢','𡏣':'𡏣','𡏤':'𡏤','𡏥':'𡏥','𡏦':'𡏦','𡏧':'𡏧','𡏨':'𡏨','𡏩':'𡏩','𡏪':'𡏪','𡏫':'𡏫','𡏬':'𡏬','𡏭':'𡏭','𡏮':'𡏮','𡏯':'𡏯','𡏰':'𡏰','𡏱':'𡏱','𡏲':'𡏲','𡏳':'𡏳','𡏴':'𡏴','𡏵':'𡏵','𡏶':'𡏶','𡏷':'𡏷','𡏸':'𡏸','𡏹':'𡏹','𡏺':'𡏺','𡏻':'𡏻','𡏼':'𡏼','𡏽':'𡏽','𡏾':'𡏾','𡏿':'𡏿','𡐀':'𡐀','𡐁':'𡐁','𡐂':'𡐂','𡐃':'𡐃','𡐄':'𡐄','𡐅':'𡐅','𡐆':'𡐆','𡐇':'𡐇','𡐈':'𡐈','𡐉':'𡐉','𡐊':'𡐊','𡐋':'𡐋','𡐌':'𡐌','𡐍':'𡐍','𡐎':'𡐎','𡐏':'𡐏','𡐐':'𡐐','𡐑':'𡐑','𡐒':'𡐒','𡐓':'𡐓','𡐔':'𡐔','𡐕':'𡐕','𡐖':'𡐖','𡐗':'𡐗','𡐘':'𡐘','𡐙':'𡐙','𡐚':'𡐚','𡐛':'𡐛','𡐜':'𡐜','𡐝':'𡐝','𡐞':'𡐞','𡐟':'𡐟','𡐠':'𡐠','𡐡':'𡐡','𡐢':'𡐢','𡐣':'𡐣','𡐤':'𡐤','𡐥':'𡐥','𡐦':'𡐦','𡐧':'𡐧','𡐨':'𡐨','𡐩':'𡐩','𡐪':'𡐪','𡐫':'𡐫','𡐬':'𡐬','𡐭':'𡐭','𡐮':'𡐮','𡐯':'𡐯','𡐰':'𡐰','𡐱':'𡐱','𡐲':'𡐲','𡐳':'𡐳','𡐴':'𡐴','𡐵':'𡐵','𡐶':'𡐶','𡐷':'𡐷','𡐸':'𡐸','𡐹':'𡐹','𡐺':'𡐺','𡐻':'𡐻','𡐼':'𡐼','𡐽':'𡐽','𡐾':'𡐾','𡐿':'𡐿','𡑀':'𡑀','𡑁':'𡑁','𡑂':'𡑂','𡑃':'𡑃','𡑄':'𡑄','𡑅':'𡑅','𡑆':'𡑆','𡑇':'𡑇','𡑈':'𡑈','𡑉':'𡑉','𡑊':'𡑊','𡑋':'𡑋','𡑌':'𡑌','𡑍':'𡑍','𡑎':'𡑎','𡑏':'𡑏','𡑐':'𡑐','𡑑':'𡑑','𡑒':'𡑒','𡑓':'𡑓','𡑔':'𡑔','𡑕':'𡑕','𡑖':'𡑖','𡑗':'𡑗','𡑘':'𡑘','𡑙':'𡑙','𡑚':'𡑚','𡑛':'𡑛','𡑜':'𡑜','𡑝':'𡑝','𡑞':'𡑞','𡑟':'𡑟','𡑠':'𡑠','𡑡':'𡑡','𡑢':'𡑢','𡑣':'𡑣','𡑤':'𡑤','𡑥':'𡑥','𡑦':'𡑦','𡑧':'𡑧','𡑨':'𡑨','𡑩':'𡑩','𡑪':'𡑪','𡑫':'𡑫','𡑬':'𡑬','𡑭':'𡑭','𡑮':'𡑮','𡑯':'𡑯','𡑰':'𡑰','𡑱':'𡑱','𡑲':'𡑲','𡑳':'𡑳','𡑴':'𡑴','𡑵':'𡑵','𡑶':'𡑶','𡑷':'𡑷','𡑸':'𡑸','𡑹':'𡑹','𡑺':'𡑺','𡑻':'𡑻','𡑼':'𡑼','𡑽':'𡑽','𡑾':'𡑾','𡑿':'𡑿','𡒀':'𡒀','𡒁':'𡒁','𡒂':'𡒂','𡒃':'𡒃','𡒄':'𡒄','𡒅':'𡒅','𡒆':'𡒆','𡒇':'𡒇','𡒈':'𡒈','𡒉':'𡒉','𡒊':'𡒊','𡒋':'𡒋','𡒌':'𡒌','𡒍':'𡒍','𡒎':'𡒎','𡒏':'𡒏','𡒐':'𡒐','𡒑':'𡒑','𡒒':'𡒒','𡒓':'𡒓','𡒔':'𡒔','𡒕':'𡒕','𡒖':'𡒖','𡒗':'𡒗','𡒘':'𡒘','𡒙':'𡒙','𡒚':'𡒚','𡒛':'𡒛','𡒜':'𡒜','𡒝':'𡒝','𡒞':'𡒞','𡒟':'𡒟','𡒠':'𡒠','𡒡':'𡒡','𡒢':'𡒢','𡒣':'𡒣','𡒤':'𡒤','𡒥':'𡒥','𡒦':'𡒦','𡒧':'𡒧','𡒨':'𡒨','𡒩':'𡒩','𡒪':'𡒪','𡒫':'𡒫','𡒬':'𡒬','𡒭':'𡒭','𡒮':'𡒮','𡒯':'𡒯','𡒰':'𡒰','𡒱':'𡒱','𡒲':'𡒲','𡒳':'𡒳','𡒴':'𡒴','𡒵':'𡒵','𡒶':'𡒶','𡒷':'𡒷','𡒸':'𡒸','𡒹':'𡒹','𡒺':'𡒺','𡒻':'𡒻','𡒼':'𡒼','𡒽':'𡒽','𡒾':'𡒾','𡒿':'𡒿','𡓀':'𡓀','𡓁':'𡓁','𡓂':'𡓂','𡓃':'𡓃','𡓄':'𡓄','𡓅':'𡓅','𡓆':'𡓆','𡓇':'𡓇','𡓈':'𡓈','𡓉':'𡓉','𡓊':'𡓊','𡓋':'𡓋','𡓌':'𡓌','𡓍':'𡓍','𡓎':'𡓎','𡓏':'𡓏','𡓐':'𡓐','𡓑':'𡓑','𡓒':'𡓒','𡓓':'𡓓','𡓔':'𡓔','𡓕':'𡓕','𡓖':'𡓖','𡓗':'𡓗','𡓘':'𡓘','𡓙':'𡓙','𡓚':'𡓚','𡓛':'𡓛','𡓜':'𡓜','𡓝':'𡓝','𡓞':'𡓞','𡓟':'𡓟','𡓠':'𡓠','𡓡':'𡓡','𡓢':'𡓢','𡓣':'𡓣','𡓤':'𡓤','𡓥':'𡓥','𡓦':'𡓦','𡓧':'𡓧','𡓨':'𡓨','𡓩':'𡓩','𡓪':'𡓪','𡓫':'𡓫','𡓬':'𡓬','𡓭':'𡓭','𡓮':'𡓮','𡓯':'𡓯','𡓰':'𡓰','𡓱':'𡓱','𡓲':'𡓲','𡓳':'𡓳','𡓴':'𡓴','𡓵':'𡓵','𡓶':'𡓶','𡓷':'𡓷','𡓸':'𡓸','𡓹':'𡓹','𡓺':'𡓺','𡓻':'𡓻','𡓼':'𡓼','𡓽':'𡓽','𡓾':'𡓾','𡓿':'𡓿','𡔀':'𡔀','𡔁':'𡔁','𡔂':'𡔂','𡔃':'𡔃','𡔄':'𡔄','𡔅':'𡔅','𡔆':'𡔆','𡔇':'𡔇','𡔈':'𡔈','𡔉':'𡔉','𡔊':'𡔊','𡔋':'𡔋','𡔌':'𡔌','𡔍':'𡔍','𡔎':'𡔎','𡔏':'𡔏','𡔐':'𡔐','𡔑':'𡔑','𡔒':'𡔒','𡔓':'𡔓','𡔔':'𡔔','𡔕':'𡔕','𡔖':'𡔖','𡔗':'𡔗','𡔘':'𡔘','𡔙':'𡔙','𡔚':'𡔚','𡔛':'𡔛','𡔜':'𡔜','𡔝':'𡔝','𡔞':'𡔞','𡔟':'𡔟','𡔠':'𡔠','𡔡':'𡔡','𡔢':'𡔢','𡔣':'𡔣','𡔤':'𡔤','𡔥':'𡔥','𡔦':'𡔦','𡔧':'𡔧','𡔨':'𡔨','𡔩':'𡔩','𡔪':'𡔪','𡔫':'𡔫','𡔬':'𡔬','𡔭':'𡔭','𡔮':'𡔮','𡔯':'𡔯','𡔰':'𡔰','𡔱':'𡔱','𡔲':'𡔲','𡔳':'𡔳','𡔴':'𡔴','𡔵':'𡔵','𡔶':'𡔶','𡔷':'𡔷','𡔸':'𡔸','𡔹':'𡔹','𡔺':'𡔺','𡔻':'𡔻','𡔼':'𡔼','𡔽':'𡔽','𡔾':'𡔾','𡔿':'𡔿','𡕀':'𡕀','𡕁':'𡕁','𡕂':'𡕂','𡕃':'𡕃','𡕄':'𡕄','𡕅':'𡕅','𡕆':'𡕆','𡕇':'𡕇','𡕈':'𡕈','𡕉':'𡕉','𡕊':'𡕊','𡕋':'𡕋','𡕌':'𡕌','𡕍':'𡕍','𡕎':'𡕎','𡕏':'𡕏','𡕐':'𡕐','𡕑':'𡕑','𡕒':'𡕒','𡕓':'𡕓','𡕔':'𡕔','𡕕':'𡕕','𡕖':'𡕖','𡕗':'𡕗','𡕘':'𡕘','𡕙':'𡕙','𡕚':'𡕚','𡕛':'𡕛','𡕜':'𡕜','𡕝':'𡕝','𡕞':'𡕞','𡕟':'𡕟','𡕠':'𡕠','𡕡':'𡕡','𡕢':'𡕢','𡕣':'𡕣','𡕤':'𡕤','𡕥':'𡕥','𡕦':'𡕦','𡕧':'𡕧','𡕨':'𡕨','𡕩':'𡕩','𡕪':'𡕪','𡕫':'𡕫','𡕬':'𡕬','𡕭':'𡕭','𡕮':'𡕮','𡕯':'𡕯','𡕰':'𡕰','𡕱':'𡕱','𡕲':'𡕲','𡕳':'𡕳','𡕴':'𡕴','𡕵':'𡕵','𡕶':'𡕶','𡕷':'𡕷','𡕸':'𡕸','𡕹':'𡕹','𡕺':'𡕺','𡕻':'𡕻','𡕼':'𡕼','𡕽':'𡕽','𡕾':'𡕾','𡕿':'𡕿','𡖀':'𡖀','𡖁':'𡖁','𡖂':'𡖂','𡖃':'𡖃','𡖄':'𡖄','𡖅':'𡖅','𡖆':'𡖆','𡖇':'𡖇','𡖈':'𡖈','𡖉':'𡖉','𡖊':'𡖊','𡖋':'𡖋','𡖌':'𡖌','𡖍':'𡖍','𡖎':'𡖎','𡖏':'𡖏','𡖐':'𡖐','𡖑':'𡖑','𡖒':'𡖒','𡖓':'𡖓','𡖔':'𡖔','𡖕':'𡖕','𡖖':'𡖖','𡖗':'𡖗','𡖘':'𡖘','𡖙':'𡖙','𡖚':'𡖚','𡖛':'𡖛','𡖜':'𡖜','𡖝':'𡖝','𡖞':'𡖞','𡖟':'𡖟','𡖠':'𡖠','𡖡':'𡖡','𡖢':'𡖢','𡖣':'𡖣','𡖤':'𡖤','𡖥':'𡖥','𡖦':'𡖦','𡖧':'𡖧','𡖨':'𡖨','𡖩':'𡖩','𡖪':'𡖪','𡖫':'𡖫','𡖬':'𡖬','𡖭':'𡖭','𡖮':'𡖮','𡖯':'𡖯','𡖰':'𡖰','𡖱':'𡖱','𡖲':'𡖲','𡖳':'𡖳','𡖴':'𡖴','𡖵':'𡖵','𡖶':'𡖶','𡖷':'𡖷','𡖸':'𡖸','𡖹':'𡖹','𡖺':'𡖺','𡖻':'𡖻','𡖼':'𡖼','𡖽':'𡖽','𡖾':'𡖾','𡖿':'𡖿','𡗀':'𡗀','𡗁':'𡗁','𡗂':'𡗂','𡗃':'𡗃','𡗄':'𡗄','𡗅':'𡗅','𡗆':'𡗆','𡗇':'𡗇','𡗈':'𡗈','𡗉':'𡗉','𡗊':'𡗊','𡗋':'𡗋','𡗌':'𡗌','𡗍':'𡗍','𡗎':'𡗎','𡗏':'𡗏','𡗐':'𡗐','𡗑':'𡗑','𡗒':'𡗒','𡗓':'𡗓','𡔰':'𡔰','𠮟':'𠮟'};
+/**
+ * Convert a Simplified Chinese string to Traditional Chinese.
+ */
+function s2t(text) {
+    return [...text].map(ch => S2T_MAP[ch] || ch).join('');
+}
+
+/** Build a reverse lookup: simplified char → traditional, traditional → simplified */
+function buildS2TLookup() {
+    const lookup = {};
+    for (const [s, t] of Object.entries(S2T_MAP)) {
+        lookup[s] = lookup[s] || [];
+        if (lookup[s].indexOf(t) === -1) lookup[s].push(t);
+        lookup[t] = lookup[t] || [];
+        if (lookup[t].indexOf(s) === -1) lookup[t].push(s);
+    }
+    return lookup;
+}
+const S2T_LOOKUP = buildS2TLookup();
+
+/**
+ * Get all variant forms of a character (including itself).
+ * e.g. for '阁' returns ['阁', '閣']; for '見' returns ['見', '见']
+ */
+function getCharVariants(ch) {
+    const variants = [ch];
+    const related = S2T_LOOKUP[ch];
+    if (related) {
+        for (const r of related) {
+            if (variants.indexOf(r) === -1) variants.push(r);
+        }
+    }
+    return variants;
+}
+
+// ==================== 6. Converter ============================
+/**
+ * Horizontal-to-vertical text converter.
+ * Takes a flat string, splits into lines, removes punctuation.
+ */
+class Converter {
+    constructor(refs) {
+        this.refs = refs; // { input, colCount, rowCount, removePunct, convertBtn, directLoadBtn }
+
+        refs.convertBtn.addEventListener('click', () => this.convert());
+        refs.directLoadBtn.addEventListener('click', () => this.directLoad());
+    }
+
+    /** Run the conversion */
+    convert() {
+        const raw = this.refs.input.value;
+        const colCount = parseInt(this.refs.colCount.value) || 3;
+        const rowCount = parseInt(this.refs.rowCount.value) || 6;
+        const removePunct = this.refs.removePunct.checked;
+
+        if (!raw.trim()) return;
+
+        // Step 1: Optionally remove punctuation
+        let text = raw;
+        if (removePunct) {
+            // Regex matches CJK and full-width punctuation, plus ASCII punctuation
+            text = text.replace(/[，。！？、；：""''（）【】《》—…·～\.,!?;:'"()\[\]{}<>\-_/\\|@#$%^&*`~\s]/g, '');
+        }
+
+        // Step 2: Split into columns (each column = one line in the vertical display)
+        const lines = [];
+        let pos = 0;
+        const totalCols = Math.min(colCount, 20);
+        const totalRows = Math.min(rowCount, 30);
+
+        for (let col = 0; col < totalCols; col++) {
+            const line = [];
+            for (let row = 0; row < totalRows; row++) {
+                if (pos < text.length) {
+                    line.push(text[pos]);
+                    pos++;
+                } else {
+                    break;
+                }
+            }
+            if (line.length > 0) {
+                lines.push(line);
+            }
+            // If we've consumed all text, stop adding columns
+            if (pos >= text.length) break;
+        }
+
+        // Step 3: Auto-load into the main grid
+        if (this.onLoadRequest) {
+            this.onLoadRequest(lines);
+        }
+    }
+
+    /**
+     * Direct wall-load: each non-empty line of input becomes one column.
+     * No column/row formatting — the user controls layout by where they put newlines.
+     */
+    directLoad() {
+        const raw = this.refs.input.value;
+        const removePunct = this.refs.removePunct.checked;
+
+        if (!raw.trim()) return;
+
+        // Split by newlines, filter empty lines, optionally remove punctuation
+        const rawLines = raw.split(/\n/);
+        const lines = [];
+
+        for (const line of rawLines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            let chars = [...trimmed];
+            if (removePunct) {
+                chars = chars.filter(ch => !/[，。！？、；：""''（）【】《》—…·～\.,!?;:'"()\[\]{}<>\-_\/\\|@#$%^&*`~\s]/.test(ch));
+            }
+            if (chars.length > 0) {
+                lines.push(chars);
+            }
+        }
+
+        // Auto-load into main grid
+        if (this.onLoadRequest) {
+            this.onLoadRequest(lines);
+        }
+    }
+
+}
+
+// ==================== 6. UIController =========================
+/**
+ * Wires all components together and starts the app.
+ */
+class UIController {
+    constructor() {
+        // --- Gather DOM refs ---
+        const gridContainer = document.getElementById('gridContainer');
+        const preview = document.getElementById('selectionPreview');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const wordsList = document.getElementById('wordsList');
+        const textarea = document.getElementById('wordsTextarea');
+        const copyBtn = document.getElementById('copyBtn');
+
+        // Converter refs
+        const converterRefs = {
+            input: document.getElementById('converterInput'),
+            colCount: document.getElementById('colCount'),
+            rowCount: document.getElementById('rowCount'),
+            removePunct: document.getElementById('removePunct'),
+            convertBtn: document.getElementById('convertBtn'),
+            directLoadBtn: document.getElementById('directLoadBtn'),
+        };
+
+        // --- Init search ---
+        this._initSearch();
+
+        // --- Init state ---
+        this.state = new AppState(SAMPLE_DATA, 10);
+
+        // --- Init renderer ---
+        this.renderer = new GridRenderer(gridContainer, (lineIdx, charIdx) => {
+            this.selectionMgr.handleCellClick(lineIdx, charIdx);
+        });
+
+        // --- Init selection manager ---
+        this.selectionMgr = new SelectionMgr(this.state, this.renderer, {
+            preview,
+            confirmBtn,
+            clearBtn,
+        });
+
+        // When word is confirmed, re-render words list
+        this.selectionMgr.onWordConfirmed = () => {
+            this.wordsManager.render();
+        };
+
+        // --- Init words manager ---
+        this.wordsManager = new WordsManager(this.state, {
+            wordsList,
+            textarea,
+            copyBtn,
+        });
+
+        // Handle word deletion (undo)
+        this.wordsManager.onDeleteWord = (index) => {
+            // Reconstruct cells from the word, then remove
+            const targetWord = this.state.words[index];
+            if (!targetWord) return;
+            // Remove word and unmark its cells
+            this.state.words.splice(index, 1);
+            for (const c of targetWord.cells) {
+                this.state.usedCells.delete(AppState.cellKey(c.line, c.char));
+            }
+            this.wordsManager.render();
+            this.selectionMgr.reset();
+        };
+
+        // --- Init converter ---
+        this.converter = new Converter(converterRefs);
+        this.converter.onLoadRequest = (lines) => {
+            this.state.loadLines(lines);
+            this.renderer.render(this.state);
+            this.selectionMgr.reset();
+            this.wordsManager.render();
+            // Re-run search after grid content changes
+            if (this._searchRefresh) setTimeout(this._searchRefresh, 0);
+        };
+
+        // --- Wire s2t button ---
+        document.getElementById('s2tBtn').addEventListener('click', () => {
+            const ta = document.getElementById('converterInput');
+            ta.value = s2t(ta.value);
+        });
+
+        // --- Wire button events ---
+        confirmBtn.addEventListener('click', () => this.selectionMgr.confirm());
+        clearBtn.addEventListener('click', () => this.selectionMgr.clear());
+
+        // --- Initial render ---
+        this.renderer.render(this.state);
+        this.selectionMgr.reset();
+        this.wordsManager.render();
+    }
+
+    /** Initialise the floating search bar */
+    _initSearch() {
+        this._searchChars = [];       // current search characters
+        this._searchHighlighted = []; // currently highlighted btn elements
+
+        const input = document.getElementById('searchInput');
+        const count = document.getElementById('searchCount');
+        const clear = document.getElementById('searchClear');
+
+        const doSearch = () => {
+            this._clearHighlights();
+            const raw = input.value.trim();
+            if (!raw) {
+                count.textContent = '';
+                this._searchChars = [];
+                return;
+            }
+
+            // Unique search characters (expand to include traditional/simplified variants)
+            const searchSet = new Set();
+            for (const ch of [...raw]) {
+                const variants = getCharVariants(ch);
+                for (const v of variants) searchSet.add(v);
+            }
+            this._searchChars = [...searchSet];
+
+            if (this._searchChars.length === 0) {
+                count.textContent = '';
+                return;
+            }
+
+            // Find matching cells in the grid and highlight them
+            const btns = document.querySelectorAll('#gridContainer .char-btn:not(.disabled)');
+            let hitCount = 0;
+            for (const btn of btns) {
+                const ch = btn.dataset.ch;
+                if (this._searchChars.indexOf(ch) !== -1) {
+                    btn.classList.add('search-hit');
+                    this._searchHighlighted.push(btn);
+                    hitCount++;
+                }
+            }
+            count.textContent = hitCount > 0 ? `找到 ${hitCount} 个` : '无匹配';
+        };
+
+        input.addEventListener('input', doSearch);
+        clear.addEventListener('click', () => {
+            input.value = '';
+            this._clearHighlights();
+            count.textContent = '';
+            this._searchChars = [];
+            input.focus();
+        });
+        // Re-run search after grid updates (e.g. new data loaded)
+        this._searchRefresh = doSearch;
+    }
+
+    /** Remove all search highlights from buttons */
+    _clearHighlights() {
+        for (const btn of this._searchHighlighted) {
+            btn.classList.remove('search-hit');
+        }
+        this._searchHighlighted = [];
+    }
+}
+
+// ======================== BOOT ================================
+document.addEventListener('DOMContentLoaded', () => {
+    new UIController();
+});
+</script>
+
+</body>
+</html>
